@@ -4,7 +4,10 @@ import GitLab from "next-auth/providers/gitlab"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     providers: [
-        GitHub,
+        GitHub({
+            clientId: process.env.AUTH_GITHUB_ID,
+            clientSecret: process.env.AUTH_GITHUB_SECRET,
+        }),
         GitLab({
             clientId: process.env.AUTH_GITLAB_ID,
             clientSecret: process.env.AUTH_GITLAB_SECRET,

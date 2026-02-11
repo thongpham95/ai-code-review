@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { Github, Gitlab, Server, Loader2, CheckCircle2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
+import { signIn } from "next-auth/react"
 
 const STORAGE_KEY = "gitlab-self-hosted-config"
 
@@ -132,18 +133,22 @@ export default function LoginPage() {
                 </CardHeader>
                 <CardContent className="grid gap-4">
                     {/* OAuth Providers */}
-                    <form action="/api/auth/signin/github" method="GET">
-                        <Button className="w-full bg-neutral-800 text-neutral-50 hover:bg-neutral-700" variant="outline" type="submit">
-                            <Github className="mr-2 h-4 w-4" />
-                            Sign in with GitHub
-                        </Button>
-                    </form>
-                    <form action="/api/auth/signin/gitlab" method="GET">
-                        <Button className="w-full bg-orange-600 text-white hover:bg-orange-700" variant="outline" type="submit">
-                            <Gitlab className="mr-2 h-4 w-4" />
-                            Sign in with GitLab.com
-                        </Button>
-                    </form>
+                    <Button
+                        className="w-full bg-neutral-800 text-neutral-50 hover:bg-neutral-700"
+                        variant="outline"
+                        onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
+                    >
+                        <Github className="mr-2 h-4 w-4" />
+                        Sign in with GitHub
+                    </Button>
+                    <Button
+                        className="w-full bg-orange-600 text-white hover:bg-orange-700"
+                        variant="outline"
+                        onClick={() => signIn("gitlab", { callbackUrl: "/dashboard" })}
+                    >
+                        <Gitlab className="mr-2 h-4 w-4" />
+                        Sign in with GitLab.com
+                    </Button>
 
                     <div className="relative">
                         <div className="absolute inset-0 flex items-center">
