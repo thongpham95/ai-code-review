@@ -1,0 +1,197 @@
+import { PatternMatch } from "./pattern-scanner";
+import Database from "better-sqlite3";
+import path from "path";
+
+export interface Review {
+    id: string;
+    title: string;
+    source: "gitlab-mr" | "github-pr" | "custom-url" | "paste";
+    sourceUrl?: string;
+    status: "pending" | "scanning" | "reviewing" | "completed" | "failed";
+    createdAt: string;
+    completedAt?: string;
+    patternResults?: PatternMatch[];
+    aiResults?: string;
+    aiAnalysis?: string;
+    code?: string;
+    files?: { name: string; content: string; diff?: string }[];
+    contextDocs?: { name: string; text: string }[];
+    contextDocuments?: { name: string; content: string }[];
+}
+
+// SQLite persistent store - shared across all workers via file
+const DB_PATH = path.join(process.cwd(), "reviews.db");
+
+function getDb(): Database.Database {
+    const db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL"); // Better concurrent read performance
+    db.pragma("busy_timeout = 5000");
+
+    // Create table if not exists
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS reviews (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'paste',
+            sourceUrl TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            createdAt TEXT NOT NULL,
+            completedAt TEXT,
+            patternResults TEXT,
+            aiResults TEXT,
+            aiAnalysis TEXT,
+            code TEXT,
+            files TEXT,
+            contextDocs TEXT,
+            contextDocuments TEXT
+        )
+    `);
+
+    return db;
+}
+
+function rowToReview(row: Record<string, unknown>): Review {
+    return {
+        id: row.id as string,
+        title: row.title as string,
+        source: row.source as Review["source"],
+        sourceUrl: row.sourceUrl as string | undefined,
+        status: row.status as Review["status"],
+        createdAt: row.createdAt as string,
+        completedAt: row.completedAt as string | undefined,
+        patternResults: row.patternResults ? JSON.parse(row.patternResults as string) : undefined,
+        aiResults: row.aiResults as string | undefined,
+        aiAnalysis: row.aiAnalysis as string | undefined,
+        code: row.code as string | undefined,
+        files: row.files ? JSON.parse(row.files as string) : undefined,
+        contextDocs: row.contextDocs ? JSON.parse(row.contextDocs as string) : undefined,
+        contextDocuments: row.contextDocuments ? JSON.parse(row.contextDocuments as string) : undefined,
+    };
+}
+
+export function createReview(data: Omit<Review, "id" | "createdAt" | "status">): Review {
+    const db = getDb();
+    const id = `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const review: Review = {
+        id,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        ...data,
+    };
+
+    const stmt = db.prepare(`
+        INSERT INTO reviews (id, title, source, sourceUrl, status, createdAt, completedAt, patternResults, aiResults, aiAnalysis, code, files, contextDocs, contextDocuments)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+        review.id,
+        review.title,
+        review.source,
+        review.sourceUrl || null,
+        review.status,
+        review.createdAt,
+        review.completedAt || null,
+        review.patternResults ? JSON.stringify(review.patternResults) : null,
+        review.aiResults || null,
+        review.aiAnalysis || null,
+        review.code || null,
+        review.files ? JSON.stringify(review.files) : null,
+        review.contextDocs ? JSON.stringify(review.contextDocs) : null,
+        review.contextDocuments ? JSON.stringify(review.contextDocuments) : null,
+    );
+
+    db.close();
+    return review;
+}
+
+export function getReview(id: string): Review | undefined {
+    const db = getDb();
+    const row = db.prepare("SELECT * FROM reviews WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    db.close();
+    return row ? rowToReview(row) : undefined;
+}
+
+export function updateReview(id: string, data: Partial<Review>): Review | undefined {
+    const db = getDb();
+    const existing = db.prepare("SELECT * FROM reviews WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!existing) {
+        db.close();
+        return undefined;
+    }
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    const fieldMap: Record<string, (v: unknown) => unknown> = {
+        title: (v) => v,
+        source: (v) => v,
+        sourceUrl: (v) => v,
+        status: (v) => v,
+        completedAt: (v) => v,
+        patternResults: (v) => v ? JSON.stringify(v) : null,
+        aiResults: (v) => v,
+        aiAnalysis: (v) => v,
+        code: (v) => v,
+        files: (v) => v ? JSON.stringify(v) : null,
+        contextDocs: (v) => v ? JSON.stringify(v) : null,
+        contextDocuments: (v) => v ? JSON.stringify(v) : null,
+    };
+
+    for (const [key, transform] of Object.entries(fieldMap)) {
+        if (key in data) {
+            updates.push(`${key} = ?`);
+            values.push(transform((data as Record<string, unknown>)[key]));
+        }
+    }
+
+    if (updates.length > 0) {
+        values.push(id);
+        db.prepare(`UPDATE reviews SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+    }
+
+    const updated = db.prepare("SELECT * FROM reviews WHERE id = ?").get(id) as Record<string, unknown>;
+    db.close();
+    return rowToReview(updated);
+}
+
+export function listReviews(): Review[] {
+    const db = getDb();
+    const rows = db.prepare("SELECT * FROM reviews ORDER BY createdAt DESC LIMIT 50").all() as Record<string, unknown>[];
+    db.close();
+    return rows.map(rowToReview);
+}
+
+export function getStats(): { totalReviews: number; totalIssues: number; completedToday: number } {
+    const db = getDb();
+    const today = new Date().toISOString().split("T")[0];
+
+    const countRow = db.prepare("SELECT COUNT(*) as total FROM reviews").get() as { total: number };
+    const completedRow = db.prepare(
+        "SELECT COUNT(*) as count FROM reviews WHERE status = 'completed' AND completedAt LIKE ?"
+    ).get(`${today}%`) as { count: number };
+
+    // Sum all pattern results
+    const rows = db.prepare("SELECT patternResults FROM reviews WHERE patternResults IS NOT NULL").all() as { patternResults: string }[];
+    const totalIssues = rows.reduce((sum, row) => {
+        try {
+            return sum + JSON.parse(row.patternResults).length;
+        } catch {
+            return sum;
+        }
+    }, 0);
+
+    db.close();
+
+    return {
+        totalReviews: countRow.total,
+        totalIssues,
+        completedToday: completedRow.count,
+    };
+}
+
+export function deleteAllReviews(): void {
+    const db = getDb();
+    db.exec("DELETE FROM reviews");
+    db.close();
+}

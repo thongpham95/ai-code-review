@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Code Review
 
-## Getting Started
+Ứng dụng web review code tự động sử dụng AI, hỗ trợ tích hợp GitLab và nhiều mô hình AI khác nhau.
 
-First, run the development server:
+## Tính năng chính
+
+- **Authentication**: GitHub OAuth, GitLab OAuth, GitLab Self-Hosted (PAT)
+- **AI Review**: OpenAI (Cloud) và Ollama (Local)
+- **GitLab Integration**: Fetch Merge Request tự động
+- **Pattern Scanner**: Phát hiện lỗi phổ biến
+- **Đa ngôn ngữ**: Hỗ trợ Tiếng Anh và Tiếng Việt
+- **Context Documents**: Upload PDF, Word, Excel làm context
+
+## Quick Start
 
 ```bash
+# Clone repository
+git clone https://github.com/thongpham95/ai-code-review.git
+cd ai-code-review
+
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env.local
+# Edit .env.local with your secrets
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Truy cập http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Build và chạy
+docker-compose up -d
 
-## Learn More
+# Production
+docker-compose -f docker-compose.prod.yml up -d
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Documentation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Xem chi tiết tại folder [docs/](docs/):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [README.md](docs/README.md) - Hướng dẫn chi tiết
+- [PRD.md](docs/PRD.md) - Product Requirements Document
+- [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) - Kế hoạch triển khai
+- [TEST_PLAN.md](docs/TEST_PLAN.md) - Kế hoạch kiểm thử
+- [BUG_REPORT.md](docs/BUG_REPORT.md) - Lịch sử lỗi
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Công nghệ | Phiên bản |
+|-----------|-----------|
+| Next.js | 16.1.6 |
+| React | 19.2.3 |
+| TypeScript | 5.x |
+| Tailwind CSS | 4.x |
+| NextAuth | 5.0 beta |
+| AI SDK | 6.x |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT

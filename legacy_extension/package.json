@@ -1,0 +1,149 @@
+{
+  "name": "ai-code-review",
+  "displayName": "AI Code Review",
+  "description": "Trợ lý Review Code tự động với OpenAI/Claude/Ollama. Mô phỏng Senior Tech Lead tìm lỗi, lập kế hoạch và comment MR/PR.",
+  "version": "0.1.0",
+  "publisher": "ai-code-review",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiCodeReview.loginGitHub",
+        "title": "AI Review: Đăng nhập GitHub"
+      },
+      {
+        "command": "aiCodeReview.loginGitLab",
+        "title": "AI Review: Đăng nhập GitLab"
+      },
+      {
+        "command": "aiCodeReview.scanWorkspace",
+        "title": "AI Review: Quét & Phân tích Workspace"
+      },
+      {
+        "command": "aiCodeReview.reviewFromUrl",
+        "title": "AI Review: Review từ URL (MR/PR)"
+      },
+      {
+        "command": "aiCodeReview.approveReviewPlan",
+        "title": "AI Review: Duyệt Kế Hoạch & Bắt đầu Review"
+      },
+      {
+        "command": "aiCodeReview.startReview",
+        "title": "AI Review: Bắt đầu Review"
+      },
+      {
+        "command": "aiCodeReview.publishToSCM",
+        "title": "AI Review: Duyệt & Đẩy Comment lên SCM"
+      },
+      {
+        "command": "aiCodeReview.generatePRDescription",
+        "title": "AI Review: Tạo Mô Tả PR/MR"
+      },
+      {
+        "command": "aiCodeReview.stopReview",
+        "title": "AI Review: Dừng Review & Giải phóng Ollama"
+      },
+      {
+        "command": "aiCodeReview.configureLLM",
+        "title": "AI Review: Cấu hình LLM"
+      }
+    ],
+    "configuration": {
+      "title": "AI Code Review",
+      "properties": {
+        "aiCodeReview.llmProvider": {
+          "type": "string",
+          "default": "openai",
+          "enum": [
+            "openai",
+            "gemini",
+            "claude",
+            "ollama"
+          ],
+          "enumDescriptions": [
+            "OpenAI (GPT-4o, GPT-4-turbo)",
+            "Google Gemini (Gemini 1.5 Pro)",
+            "Anthropic Claude (Claude 3.5 Sonnet)",
+            "Ollama (Local LLM)"
+          ],
+          "description": "Chọn LLM provider cho việc review."
+        },
+        "aiCodeReview.llmApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key cho LLM provider (dự phòng nếu OAuth không khả dụng)."
+        },
+        "aiCodeReview.llmModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model cụ thể (ví dụ: gpt-4o, gemini-1.5-pro, claude-3-5-sonnet). Để trống = mặc định."
+        },
+        "aiCodeReview.ollamaEndpoint": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Endpoint cho Ollama (local LLM)."
+        },
+        "aiCodeReview.reviewLanguage": {
+          "type": "string",
+          "default": "vi",
+          "enum": [
+            "vi",
+            "en"
+          ],
+          "description": "Ngôn ngữ của review comments."
+        },
+        "aiCodeReview.gitlabHost": {
+          "type": "string",
+          "default": "https://gitlab.com",
+          "description": "GitLab host URL (cho self-managed instances)."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aiCodeReview",
+          "title": "AI Code Review",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aiCodeReview": [
+        {
+          "id": "aiCodeReview.mainView",
+          "name": "Trợ lý Review"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "lint": "eslint src --ext ts",
+    "compile": "tsc -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "simple-git": "^3.22.0"
+  }
+}
