@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,11 +12,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, AlertTriangle, AlertCircle, Info, Loader2, Bot, Play, FileCode, FileText, CheckCircle2, Languages, Sparkles } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, AlertCircle, Info, Loader2, Bot, Play, FileCode, FileText, CheckCircle2, Languages, Sparkles, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import { useReactToPrint } from 'react-to-print';
+import { useLanguage } from '@/contexts/language-context';
 
 interface PatternResult {
     line: number
@@ -58,6 +60,13 @@ export default function ReviewDetailsPage() {
     const [reviewLang, setReviewLang] = useState<"en" | "vi">("en");
     const [quickSummary, setQuickSummary] = useState<string | null>(null);
     const aiResultRef = useRef<HTMLDivElement>(null);
+    const printRef = useRef<HTMLDivElement>(null);
+    const { t } = useLanguage();
+
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: review?.title ? `AI-Review-${review.title}` : 'AI-Code-Review-Report',
+    });
 
     useEffect(() => {
         async function fetchReview() {
@@ -268,6 +277,17 @@ export default function ReviewDetailsPage() {
                             <SelectItem value="vi">VI</SelectItem>
                         </SelectContent>
                     </Select>
+                    {aiResult && !aiLoading && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 md:gap-2 h-8 md:h-9 px-2 md:px-4"
+                            onClick={() => handlePrint()}
+                        >
+                            <Download className="h-3 w-3 md:h-4 md:w-4" />
+                            <span className="hidden sm:inline">{t.reviewDetail.exportPdf}</span>
+                        </Button>
+                    )}
                     <Button
                         onClick={runAiAnalysis}
                         disabled={aiLoading}
@@ -275,9 +295,9 @@ export default function ReviewDetailsPage() {
                         className="gap-1 md:gap-2 h-8 md:h-9 px-2 md:px-4"
                     >
                         {aiLoading ? (
-                            <><Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" /> <span className="hidden sm:inline">Analyzing...</span><span className="sm:hidden">...</span></>
+                            <><Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" /> <span className="hidden sm:inline">{t.reviewDetail.aiAnalyzing}</span><span className="sm:hidden">...</span></>
                         ) : (
-                            <><Play className="h-3 w-3 md:h-4 md:w-4" /> <span className="hidden sm:inline">Run AI Review</span><span className="sm:hidden">Review</span></>
+                            <><Play className="h-3 w-3 md:h-4 md:w-4" /> <span className="hidden sm:inline">{t.reviewDetail.runAiReview}</span><span className="sm:hidden">Review</span></>
                         )}
                     </Button>
                 </div>
@@ -392,8 +412,8 @@ export default function ReviewDetailsPage() {
                                         <div
                                             key={i}
                                             className={`rounded-lg border p-4 ${issue.severity === "error" ? "border-red-500/30 bg-red-500/5" :
-                                                    issue.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
-                                                        "border-blue-500/30 bg-blue-500/5"
+                                                issue.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
+                                                    "border-blue-500/30 bg-blue-500/5"
                                                 }`}
                                         >
                                             <div className="flex items-start gap-3">
@@ -487,6 +507,57 @@ export default function ReviewDetailsPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            {/* Hidden Printable Report */}
+            <div className="hidden">
+                <div ref={printRef} className="p-8 bg-white text-black print:block">
+                    <div className="mb-6 pb-4 border-b-2 border-gray-300">
+                        <h1 className="text-2xl font-bold text-gray-900">{review.title}</h1>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {review.source} · {new Date(review.createdAt).toLocaleDateString()} · {t.reviewDetail[review.status as 'completed' | 'failed' | 'pending'] || review.status}
+                        </p>
+                    </div>
+
+                    {/* Pattern Scan Summary */}
+                    {review.patternResults && review.patternResults.length > 0 && (
+                        <div className="mb-6">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-3 pb-1 border-b">
+                                {t.reviewDetail.patternScan}
+                            </h2>
+                            <div className="space-y-2">
+                                {review.patternResults.map((issue, i) => (
+                                    <div key={i} className="text-sm border-l-4 pl-3 py-1" style={{
+                                        borderColor: issue.severity === 'error' ? '#ef4444' :
+                                            issue.severity === 'warning' ? '#eab308' : '#3b82f6'
+                                    }}>
+                                        <p className="font-medium">{issue.message}</p>
+                                        <p className="text-xs text-gray-500">
+                                            Line {issue.line} · {issue.rule}
+                                            {issue.file && ` · ${issue.file}`}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* AI Review */}
+                    {aiResult && (
+                        <div className="mb-6">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-3 pb-1 border-b">
+                                {t.reviewDetail.aiReview}
+                            </h2>
+                            <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-code:bg-gray-100 prose-code:px-1 prose-code:rounded prose-pre:bg-gray-50 prose-pre:border">
+                                <ReactMarkdown>{aiResult}</ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="mt-8 pt-4 border-t text-xs text-gray-400 text-center">
+                        Generated by AI Code Review · {new Date().toLocaleDateString()}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
