@@ -6,10 +6,13 @@
 
 - **Authentication**: GitHub OAuth, GitLab OAuth, GitLab Self-Hosted (PAT)
 - **AI Review**: OpenAI (Cloud) và Ollama (Local)
-- **GitLab Integration**: Fetch Merge Request tự động
+- **GitLab & GitHub Integration**: Fetch Merge Request/Pull Request, Push AI Comments directly to GitHub/GitLab
 - **Pattern Scanner**: Phát hiện lỗi phổ biến
-- **Đa ngôn ngữ**: Hỗ trợ Tiếng Anh và Tiếng Việt
+- **Manual Review Control**: Chỉnh sửa, từ chối hoặc cập nhật comment của AI trước khi push
+- **Đa ngôn ngữ**: Hỗ trợ review và trả về kết quả bằng Tiếng Anh và Tiếng Việt
 - **Context Documents**: Upload PDF, Word, Excel làm context
+- **Streamlined UI**: Giao diện trực quan, hỗ trợ dark mode và diff view
+
 
 ## Quick Start
 

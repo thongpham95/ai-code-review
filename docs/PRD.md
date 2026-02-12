@@ -2,7 +2,7 @@
 
 ## AI Code Review - Ứng dụng Review Code Tự động
 
-**Phiên bản:** 2.2.0
+**Phiên bản:** 2.3.0
 **Ngày cập nhật:** 2026-02-12
 **Tác giả:** thongpham95
 
@@ -11,7 +11,7 @@
 ## 1. Tổng quan sản phẩm
 
 ### 1.1 Mục đích
-AI Code Review là ứng dụng web giúp lập trình viên review code tự động bằng AI, tích hợp với GitLab để tối ưu hóa quy trình code review trong team. Phiên bản 2.2 hoàn thiện giao diện GitHub/GitLab-like với inline AI comments và chuẩn bị cho Phase 3 Deep Integration.
+AI Code Review là ứng dụng web giúp lập trình viên review code tự động bằng AI, tích hợp sâu với GitHub/GitLab. Phiên bản 2.3 hoàn thiện tính năng đẩy comment trực tiếp lên PR/MR và cho phép chỉnh sửa thủ công feedback của AI.
 
 ### 1.2 Vấn đề cần giải quyết
 - Code review thủ công tốn nhiều thời gian.
@@ -23,7 +23,7 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 ### 1.3 Giải pháp
 - Review code bằng **Google Gemini** (miễn phí) — 2 chế độ: Nhanh và Chất lượng.
 - Hỗ trợ hoàn toàn Tiếng Việt và Tiếng Anh.
-- **Tìm kiếm review** theo title, từ khoá.
+- **Tương tác 2 chiều**: Push comment lên GitHub/GitLab, chỉnh sửa comment trước khi push.
 - Xuất báo cáo review ra PDF.
 - Giao diện trực quan với chế độ xem Lưới/Danh sách.
 
@@ -33,7 +33,7 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 
 ### 2.1 Người dùng chính
 - **Developer**: Review code cá nhân trước khi tạo MR.
-- **Tech Lead**: Review code của thành viên, cần công cụ hỗ trợ nhanh.
+- **Tech Lead**: Review code của thành viên, chỉnh sửa feedback của AI rồi push lên Git.
 - **Outsourcing Team**: Cần báo cáo chuyên nghiệp để gửi khách hàng.
 
 ### 2.2 Chân dung người dùng (Personas)
@@ -41,7 +41,7 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 **Persona 1: Minh - Senior Dev**
 - Cần review nhanh, chính xác.
 - Dùng "Chất lượng" (Gemini Pro) cho code phức tạp.
-- Tìm kiếm review cũ để tham khảo.
+- Chỉnh sửa lại các comment của AI cho phù hợp ngữ cảnh dự án rồi mới push.
 
 **Persona 2: Lan - Junior Dev**
 - Cần giải thích chi tiết, dễ hiểu bằng tiếng Việt.
@@ -64,6 +64,7 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 | REV-02 | AI Analysis | Phân tích code tìm lỗi, security, performance | ✅ Hoàn thành |
 | REV-03 | Model Selection | 2 chế độ Gemini: Nhanh (Flash) / Chất lượng (Pro) | ✅ Hoàn thành |
 | REV-04 | **[MỚI] Tìm kiếm Review** | Tìm kiếm review theo title, từ khoá | ✅ Hoàn thành |
+| REV-05 | **[MỚI] Git Integration** | Push comment lên PR/MR | ✅ Hoàn thành |
 
 ### 3.3 Giao diện & Trải nghiệm (P1)
 | ID | Chức năng | Mô tả | Trạng thái |
@@ -71,6 +72,7 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 | UI-01 | Đa ngôn ngữ | Chuyển đổi Tiếng Anh / Tiếng Việt | ✅ Hoàn thành |
 | UI-02 | List/Grid View | Tùy chọn hiển thị danh sách Review | ✅ Hoàn thành |
 | UI-03 | Smart Sorting | Sắp xếp, nhóm review theo ngày, số lỗi | ✅ Hoàn thành |
+| UI-04 | **Manual Edit** | Chỉnh sửa/Từ chối AI comment | ✅ Hoàn thành |
 
 ### 3.4 Báo cáo & Export (P1)
 | ID | Chức năng | Mô tả | Trạng thái |
@@ -93,13 +95,14 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 - [x] **Unified View**: Gộp Code & AI Review thành 1 giao diện thống nhất.
 - [x] **Optimized UI Density**: Giảm padding, hiển thị nhiều nội dung hơn.
 
-### Phase 3: Deep Integration (Dự kiến Q3 2026)
+### Phase 3: Deep Integration (Đang triển khai — v2.3)
 
 #### 3.1 Git Integration (P0)
-- [ ] **Push to GitLab**: Đẩy AI comment lên GitLab MR.
-- [ ] **Push to GitHub**: Đẩy AI comment lên GitHub PR.
-- [ ] **Comment Selection**: Chọn comment nào muốn push.
-- [ ] **Push Status Tracking**: Theo dõi comment đã push.
+- [x] **Push to GitLab**: Đẩy AI comment lên GitLab MR.
+- [x] **Push to GitHub**: Đẩy AI comment lên GitHub PR.
+- [x] **Comment Selection**: Chọn comment nào muốn push.
+- [x] **Push Status Tracking**: Theo dõi comment đã push.
+- [x] **Manual Edit Strategy**: Chỉnh sửa nội dung comment trước khi push.
 
 #### 3.2 RAG Enhancement (P1)
 - [ ] **Document Library**: Quản lý tài liệu context (persistent).

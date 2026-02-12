@@ -2,6 +2,7 @@
 
 import { Separator } from "@/components/ui/separator"
 import { AiConfigForm } from "@/components/settings/ai-config-form"
+import { GitAccountsForm } from "@/components/settings/git-accounts-form"
 import { useLanguage } from "@/contexts/language-context"
 
 export default function SettingsPage() {
@@ -20,7 +21,20 @@ export default function SettingsPage() {
                 <aside className="-mx-4 lg:w-1/5">
                     {/* Sidebar for settings if needed */}
                 </aside>
-                <div className="flex-1 lg:max-w-2xl">
+                <div className="flex-1 lg:max-w-2xl space-y-10">
+                    {/* Git Accounts Section */}
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-lg font-medium">Git Accounts</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Connect your GitHub and GitLab accounts to fetch Pull Requests and Merge Requests
+                            </p>
+                        </div>
+                        <Separator />
+                        <GitAccountsForm />
+                    </div>
+
+                    {/* AI Config Section */}
                     <div className="space-y-6">
                         <div>
                             <h3 className="text-lg font-medium">{t.settings.aiConfig}</h3>

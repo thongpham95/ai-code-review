@@ -35,7 +35,7 @@ export function UserNav() {
         fetch("/api/auth/session-info")
             .then(res => res.json())
             .then(data => setSessionInfo(data))
-            .catch(() => {})
+            .catch(() => { })
     }, [])
 
     async function handleLogout() {
@@ -45,10 +45,10 @@ export function UserNav() {
             // Clear sessionStorage
             sessionStorage.removeItem("gitlab-pat")
             sessionStorage.removeItem("gitlab-url")
-            window.location.href = "/login"
+            window.location.href = "/"
         } else {
             // OAuth signout
-            signOut({ callbackUrl: "/login" })
+            signOut({ callbackUrl: "/" })
         }
     }
 

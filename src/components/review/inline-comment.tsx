@@ -17,15 +17,36 @@ interface InlineCommentProps {
 /**
  * GitHub/GitLab-like inline comment component for AI review feedback
  */
-export function InlineComment({ fileComment, expanded = true, className }: InlineCommentProps) {
+export function InlineComment({ fileComment, expanded = true, className, onSave }: InlineCommentProps & { onSave?: (updatedComment: AIFileComment) => void }) {
     const [isExpanded, setIsExpanded] = useState(expanded)
-    const issueCount = fileComment.issues.length
+    const [localFileComment, setLocalFileComment] = useState(fileComment)
+
+    const issueCount = localFileComment.issues.length
     const hasIssues = issueCount > 0
+
+    const handleIssueUpdate = (index: number, updatedIssue: AIIssue) => {
+        const newIssues = [...localFileComment.issues]
+        newIssues[index] = updatedIssue
+        const newComment = { ...localFileComment, issues: newIssues }
+        setLocalFileComment(newComment)
+        onSave?.(newComment)
+    }
+
+    const handleDeleteIssue = (index: number) => {
+        const newIssues = localFileComment.issues.filter((_, i) => i !== index)
+        const newComment = {
+            ...localFileComment,
+            issues: newIssues,
+            status: newIssues.length === 0 ? "ok" : "needs_changes"
+        } as AIFileComment // process type checking
+        setLocalFileComment(newComment)
+        onSave?.(newComment)
+    }
 
     return (
         <div className={cn(
             "border rounded-lg overflow-hidden bg-gradient-to-r",
-            fileComment.status === "ok"
+            localFileComment.status === "ok"
                 ? "from-green-500/5 to-transparent border-green-500/30"
                 : hasIssues
                     ? "from-amber-500/5 to-transparent border-amber-500/30"
@@ -42,7 +63,7 @@ export function InlineComment({ fileComment, expanded = true, className }: Inlin
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
                         <Bot className="h-4 w-4 text-white" />
                     </div>
-                    {fileComment.status === "ok" && (
+                    {localFileComment.status === "ok" && (
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
                             <CheckCircle2 className="h-2.5 w-2.5 text-white" />
                         </div>
@@ -59,7 +80,7 @@ export function InlineComment({ fileComment, expanded = true, className }: Inlin
 
                 {/* Status Badge & Toggle */}
                 <div className="flex items-center gap-2">
-                    {fileComment.status === "ok" ? (
+                    {localFileComment.status === "ok" ? (
                         <Badge variant="outline" className="bg-green-500/10 border-green-500/30 text-green-600 text-xs">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Looks good
@@ -86,20 +107,26 @@ export function InlineComment({ fileComment, expanded = true, className }: Inlin
             {/* Comment Body */}
             {isExpanded && (
                 <div className="border-t bg-background/50">
-                    {fileComment.status === "ok" && !hasIssues ? (
+                    {localFileComment.status === "ok" && !hasIssues ? (
                         <div className="px-4 py-4 flex items-center gap-3 text-green-600">
                             <CheckCircle2 className="h-5 w-5" />
                             <span className="text-sm">No issues found. Code looks good!</span>
                         </div>
                     ) : hasIssues ? (
                         <div className="divide-y">
-                            {fileComment.issues.map((issue, index) => (
-                                <IssueCard key={index} issue={issue} index={index + 1} />
+                            {localFileComment.issues.map((issue, index) => (
+                                <IssueCard
+                                    key={index}
+                                    issue={issue}
+                                    index={index + 1}
+                                    onUpdate={(updated) => handleIssueUpdate(index, updated)}
+                                    onDelete={() => handleDeleteIssue(index)}
+                                />
                             ))}
                         </div>
-                    ) : fileComment.rawContent ? (
+                    ) : localFileComment.rawContent ? (
                         <div className="px-4 py-3 prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown>{fileComment.rawContent}</ReactMarkdown>
+                            <ReactMarkdown>{localFileComment.rawContent}</ReactMarkdown>
                         </div>
                     ) : (
                         <div className="px-4 py-4 text-sm text-muted-foreground">
@@ -115,10 +142,14 @@ export function InlineComment({ fileComment, expanded = true, className }: Inlin
 interface IssueCardProps {
     issue: AIIssue
     index: number
+    onUpdate?: (issue: AIIssue) => void
+    onDelete?: () => void
 }
 
-function IssueCard({ issue, index }: IssueCardProps) {
-    const [showCode, setShowCode] = useState(true)
+function IssueCard({ issue, index, onUpdate, onDelete }: IssueCardProps) {
+    const [isEditing, setIsEditing] = useState(false)
+    const [editedDescription, setEditedDescription] = useState(issue.description)
+    const [editedFix, setEditedFix] = useState(issue.suggestedFix || "")
     const [copied, setCopied] = useState(false)
 
     const severityConfig = {
@@ -163,32 +194,85 @@ function IssueCard({ issue, index }: IssueCardProps) {
         }
     }
 
+    function handleSave() {
+        if (onUpdate) {
+            onUpdate({
+                ...issue,
+                description: editedDescription,
+                suggestedFix: editedFix || undefined
+            })
+        }
+        setIsEditing(false)
+    }
+
     return (
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 group">
             {/* Issue Header */}
             <div className="flex items-start gap-3">
                 <div className={cn("p-1.5 rounded-md", config.bg)}>
                     <Icon className={cn("h-4 w-4", config.color)} />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className={cn("text-xs", config.border, config.color, config.bg)}>
-                            {config.label}
-                        </Badge>
-                        {issue.line && (
-                            <span className="text-xs text-muted-foreground font-mono">
-                                Line {issue.line}
-                            </span>
-                        )}
+                    <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={cn("text-xs", config.border, config.color, config.bg)}>
+                                {config.label}
+                            </Badge>
+                            {issue.line && (
+                                <span className="text-xs text-muted-foreground font-mono">
+                                    Line {issue.line}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Edit Actions */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                            {!isEditing && (
+                                <>
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setIsEditing(true)}>
+                                        Edit
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-red-500 hover:text-red-600" onClick={onDelete}>
+                                        Reject
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <p className="text-sm font-medium leading-relaxed">
-                        {issue.description}
-                    </p>
+
+                    {isEditing ? (
+                        <div className="space-y-3 mt-2">
+                            <textarea
+                                className="w-full text-sm p-2 border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={editedDescription}
+                                onChange={(e) => setEditedDescription(e.target.value)}
+                                rows={3}
+                            />
+                            <div className="space-y-1">
+                                <span className="text-xs font-medium text-muted-foreground">Suggested Fix:</span>
+                                <textarea
+                                    className="w-full text-xs font-mono p-2 border rounded-md bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    value={editedFix}
+                                    onChange={(e) => setEditedFix(e.target.value)}
+                                    rows={3}
+                                    placeholder="Enter suggested code fix..."
+                                />
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                                <Button size="sm" onClick={handleSave}>Save Changes</Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-sm font-medium leading-relaxed">
+                            {issue.description}
+                        </p>
+                    )}
                 </div>
             </div>
 
-            {/* Code Snippets */}
-            {(issue.currentCode || issue.suggestedFix) && (
+            {/* Code Snippets (View Mode) */}
+            {!isEditing && (issue.currentCode || issue.suggestedFix) && (
                 <div className="mt-3 ml-9">
                     {issue.currentCode && (
                         <div className="mb-2">

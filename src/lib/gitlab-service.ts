@@ -77,4 +77,120 @@ export class GitLabService {
 
         return response.json();
     }
+
+    /**
+     * Add a general note/comment to an MR
+     */
+    async addMergeRequestNote(projectPath: string, mrIid: number, body: string): Promise<GitLabNote> {
+        const encodedPath = encodeURIComponent(projectPath);
+        const url = `${this.baseUrl}/api/v4/projects/${encodedPath}/merge_requests/${mrIid}/notes`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ body }),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Failed to add MR note: ${response.statusText} - ${error}`);
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Create a new discussion thread on an MR (can be line-specific)
+     */
+    async createMergeRequestDiscussion(
+        projectPath: string,
+        mrIid: number,
+        body: string,
+        position?: {
+            baseSha: string;
+            startSha: string;
+            headSha: string;
+            positionType: "text" | "image";
+            newPath?: string;
+            oldPath?: string;
+            newLine?: number;
+            oldLine?: number;
+        }
+    ): Promise<GitLabDiscussion> {
+        const encodedPath = encodeURIComponent(projectPath);
+        const url = `${this.baseUrl}/api/v4/projects/${encodedPath}/merge_requests/${mrIid}/discussions`;
+
+        const payload: Record<string, unknown> = { body };
+
+        if (position) {
+            payload.position = {
+                base_sha: position.baseSha,
+                start_sha: position.startSha,
+                head_sha: position.headSha,
+                position_type: position.positionType,
+                new_path: position.newPath,
+                old_path: position.oldPath,
+                new_line: position.newLine,
+                old_line: position.oldLine,
+            };
+        }
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Failed to create discussion: ${response.statusText} - ${error}`);
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Get MR diff refs (needed for line-specific comments)
+     */
+    async getMergeRequestDiffRefs(projectPath: string, mrIid: number): Promise<GitLabDiffRefs> {
+        const encodedPath = encodeURIComponent(projectPath);
+        const url = `${this.baseUrl}/api/v4/projects/${encodedPath}/merge_requests/${mrIid}`;
+
+        const response = await fetch(url, {
+            headers: this.getHeaders(),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch MR: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return {
+            baseSha: data.diff_refs?.base_sha,
+            startSha: data.diff_refs?.start_sha,
+            headSha: data.diff_refs?.head_sha,
+        };
+    }
+}
+
+export interface GitLabNote {
+    id: number;
+    body: string;
+    author: {
+        id: number;
+        username: string;
+        name: string;
+    };
+    created_at: string;
+}
+
+export interface GitLabDiscussion {
+    id: string;
+    notes: GitLabNote[];
+}
+
+export interface GitLabDiffRefs {
+    baseSha: string;
+    startSha: string;
+    headSha: string;
 }

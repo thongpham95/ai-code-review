@@ -29,12 +29,14 @@ const aiFormSchema = z.object({
     model: z.string().min(1, {
         message: "Please select a model.",
     }),
+    language: z.string().optional(),
 })
 
 type AiFormValues = z.infer<typeof aiFormSchema>
 
 const defaultValues: Partial<AiFormValues> = {
     model: "gemini-2.5-flash",
+    language: "en",
 }
 
 const GEMINI_MODELS = [
@@ -57,7 +59,10 @@ export function AiConfigForm() {
             if (saved) {
                 const config = JSON.parse(saved)
                 if (config.model) {
-                    form.reset({ model: config.model })
+                    form.setValue("model", config.model)
+                }
+                if (config.language) {
+                    form.setValue("language", config.language)
                 }
             }
         } catch {
@@ -85,6 +90,40 @@ export function AiConfigForm() {
                         Free: ~250 requests/day. Set <code className="bg-muted px-1 py-0.5 rounded">GOOGLE_GENERATIVE_AI_API_KEY</code> in .env.local
                     </p>
                 </div>
+
+                {/* Default Language Selection */}
+                <FormField
+                    control={form.control}
+                    name="language"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Default AI Language</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a language" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="en">
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-base">🇺🇸</span> English
+                                        </span>
+                                    </SelectItem>
+                                    <SelectItem value="vi">
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-base">🇻🇳</span> Tiếng Việt
+                                        </span>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormDescription>
+                                The default language for AI code review feedback.
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
                 {/* Model Selection */}
                 <FormField

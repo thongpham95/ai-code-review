@@ -15,12 +15,12 @@ export default function LandingPage() {
             <span>AI Code Review</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login">
+            <Link href="/dashboard">
               <Button variant="ghost" className="text-neutral-400 hover:text-white hover:bg-white/10">
-                Log In
+                Dashboard
               </Button>
             </Link>
-            <Link href="/login">
+            <Link href="/dashboard">
               <Button className="bg-white text-black hover:bg-neutral-200 font-medium">
                 Get Started
               </Button>
@@ -45,7 +45,7 @@ export default function LandingPage() {
         </p>
 
         <div className="mt-10 flex gap-4 animate-in fade-in slide-in-from-bottom-16 duration-1000 delay-300">
-          <Link href="/login">
+          <Link href="/dashboard">
             <Button size="lg" className="h-12 bg-blue-600 px-8 text-base hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.3)]">
               Start Reviewing <ArrowRight className="ml-2 h-4 w-4" />
             </Button>

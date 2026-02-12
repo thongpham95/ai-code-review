@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { toast } from "sonner"
 import {
     Link2, Code, Upload, FileText, X,
@@ -46,7 +46,37 @@ export default function NewReviewPage() {
     const [patternResults, setPatternResults] = useState<PatternMatch[] | null>(null)
     const [reviewId, setReviewId] = useState<string | null>(null)
     const [selectedTier, setSelectedTier] = useState<ModelTier>("fast")
+    const [hasGitAccounts, setHasGitAccounts] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("git-accounts")
+            if (saved) {
+                const accounts = JSON.parse(saved)
+                const hasGithub = !!accounts.github?.token
+                const hasGitlab = !!accounts.gitlab?.token || !!accounts.gitlabSelfHosted?.token || !!sessionStorage.getItem("gitlab-pat")
+
+                if (hasGithub || hasGitlab) {
+                    setHasGitAccounts(true)
+                    return
+                }
+            }
+            // Fallback for session storage checks
+            const sessionToken = sessionStorage.getItem("gitlab-pat")
+            if (sessionToken) {
+                setHasGitAccounts(true)
+                return
+            }
+
+            // IF no accounts, default to paste and set flag
+            setHasGitAccounts(false)
+            setActiveTab("paste")
+        } catch {
+            setHasGitAccounts(false)
+            setActiveTab("paste")
+        }
+    }, [])
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const files = e.target.files
@@ -116,46 +146,115 @@ export default function NewReviewPage() {
             }
 
             if (activeTab === "url" && url.trim()) {
-                // Read token from sessionStorage first, fallback to persistent localStorage config
-                let token = sessionStorage.getItem("gitlab-pat") || ""
-                let baseUrl = sessionStorage.getItem("gitlab-url") || ""
-                if (!token || !baseUrl) {
+                // Detect URL type: GitHub or GitLab
+                const isGitHub = url.includes("github.com") && url.includes("/pull/")
+                const isGitLab = url.includes("/-/merge_requests/") || url.includes("gitlab")
+
+                if (isGitHub) {
+                    // GitHub PR flow
+                    let githubToken = ""
                     try {
-                        const saved = localStorage.getItem("gitlab-self-hosted-config")
+                        const saved = localStorage.getItem("git-accounts")
                         if (saved) {
-                            const config = JSON.parse(saved)
-                            if (!token && config.token) token = config.token
-                            if (!baseUrl && config.url) baseUrl = config.url
+                            const accounts = JSON.parse(saved)
+                            githubToken = accounts.github?.token || ""
                         }
-                    } catch { /* ignore parse errors */ }
-                }
+                    } catch { /* ignore */ }
 
-                const mrRes = await fetch("/api/gitlab/fetch-mr", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url, token, customBaseUrl: baseUrl }),
-                })
+                    const prRes = await fetch("/api/github/fetch-pr", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url, token: githubToken }),
+                    })
 
-                if (mrRes.ok) {
-                    const mrData = await mrRes.json()
-                    if (mrData.mr?.title) reviewTitle = mrData.mr.title
-                    if (mrData.mr?.changes) {
-                        for (const change of mrData.mr.changes) {
-                            if (change.diff) {
-                                files.push({ name: change.new_path || change.old_path, content: change.diff })
+                    if (prRes.ok) {
+                        const prData = await prRes.json()
+                        if (prData.pr?.title) reviewTitle = prData.pr.title
+                        if (prData.pr?.changes) {
+                            for (const change of prData.pr.changes) {
+                                if (change.diff) {
+                                    files.push({ name: change.new_path || change.old_path, content: change.diff })
+                                }
                             }
                         }
-                    }
-                    if (files.length === 0) {
-                        toast.error("MR fetched but contains no file diffs. The MR may have no code changes or diffs are too large.")
+                        if (files.length === 0) {
+                            toast.error("PR fetched but contains no file diffs. The PR may have no code changes or diffs are too large.")
+                            setIsLoading(false)
+                            return
+                        }
+                        toast.success(`Fetched PR: ${prData.pr.title} (${files.length} files)`)
+                    } else {
+                        const errData = await prRes.json().catch(() => ({ error: "Unknown error" }))
+                        const errMsg = errData.error || `HTTP ${prRes.status}`
+                        toast.error(`Failed to fetch PR: ${errMsg}. Check your GitHub token in Settings.`)
                         setIsLoading(false)
                         return
                     }
-                    toast.success(`Fetched MR: ${mrData.mr.title} (${files.length} files)`)
+                } else if (isGitLab) {
+                    // GitLab MR flow
+                    let gitlabToken = ""
+                    let baseUrl = ""
+                    try {
+                        const saved = localStorage.getItem("git-accounts")
+                        if (saved) {
+                            const accounts = JSON.parse(saved)
+                            // Check if it's self-hosted GitLab
+                            if (accounts.gitlabSelfHosted?.url && url.includes(accounts.gitlabSelfHosted.url.replace(/^https?:\/\//, ""))) {
+                                gitlabToken = accounts.gitlabSelfHosted?.token || ""
+                                baseUrl = accounts.gitlabSelfHosted?.url || ""
+                            } else {
+                                gitlabToken = accounts.gitlab?.token || ""
+                            }
+                        }
+                    } catch { /* ignore */ }
+
+                    // Fallback to old storage
+                    if (!gitlabToken) {
+                        gitlabToken = sessionStorage.getItem("gitlab-pat") || ""
+                        baseUrl = sessionStorage.getItem("gitlab-url") || ""
+                        if (!gitlabToken || !baseUrl) {
+                            try {
+                                const saved = localStorage.getItem("gitlab-self-hosted-config")
+                                if (saved) {
+                                    const config = JSON.parse(saved)
+                                    if (!gitlabToken && config.token) gitlabToken = config.token
+                                    if (!baseUrl && config.url) baseUrl = config.url
+                                }
+                            } catch { /* ignore */ }
+                        }
+                    }
+
+                    const mrRes = await fetch("/api/gitlab/fetch-mr", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url, token: gitlabToken, customBaseUrl: baseUrl }),
+                    })
+
+                    if (mrRes.ok) {
+                        const mrData = await mrRes.json()
+                        if (mrData.mr?.title) reviewTitle = mrData.mr.title
+                        if (mrData.mr?.changes) {
+                            for (const change of mrData.mr.changes) {
+                                if (change.diff) {
+                                    files.push({ name: change.new_path || change.old_path, content: change.diff })
+                                }
+                            }
+                        }
+                        if (files.length === 0) {
+                            toast.error("MR fetched but contains no file diffs. The MR may have no code changes or diffs are too large.")
+                            setIsLoading(false)
+                            return
+                        }
+                        toast.success(`Fetched MR: ${mrData.mr.title} (${files.length} files)`)
+                    } else {
+                        const errData = await mrRes.json().catch(() => ({ error: "Unknown error" }))
+                        const errMsg = errData.error || `HTTP ${mrRes.status}`
+                        toast.error(`Failed to fetch MR: ${errMsg}. Check your GitLab token in Settings.`)
+                        setIsLoading(false)
+                        return
+                    }
                 } else {
-                    const errData = await mrRes.json().catch(() => ({ error: "Unknown error" }))
-                    const errMsg = errData.error || `HTTP ${mrRes.status}`
-                    toast.error(`Failed to fetch MR: ${errMsg}. Check your GitLab token in Settings.`)
+                    toast.error("Invalid URL. Please use a GitHub PR or GitLab MR URL.")
                     setIsLoading(false)
                     return
                 }
@@ -303,12 +402,25 @@ export default function NewReviewPage() {
                             <form onSubmit={onSubmit} className="space-y-4">
                                 {activeTab === "url" && (
                                     <div className="space-y-3">
+                                        {!hasGitAccounts && (
+                                            <div className="rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-600 border border-yellow-500/20 flex gap-2">
+                                                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="font-semibold">No Git Accounts Configured</p>
+                                                    <p className="text-xs opacity-90 mt-1">
+                                                        You need to connect GitHub or GitLab in <a href="/dashboard/settings" className="underline underline-offset-2 hover:text-yellow-700">Settings</a> to fetch code from URLs.
+                                                        You can still use "Paste Code" or "Connect URL" if you configure it now.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="space-y-2">
                                             <Label htmlFor="url">{t.createReview.repoUrl}</Label>
                                             <Input
                                                 id="url"
                                                 placeholder={t.createReview.urlPlaceholder}
                                                 name="url"
+                                                disabled={!hasGitAccounts}
                                             />
                                             <p className="text-xs text-muted-foreground">
                                                 {t.createReview.urlHint}

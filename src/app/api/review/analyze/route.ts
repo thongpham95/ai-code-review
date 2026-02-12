@@ -14,6 +14,10 @@ export async function POST(req: Request) {
 QUAN TRỌNG:
 - Viết TOÀN BỘ phản hồi bằng TIẾNG VIỆT. Không sử dụng tiếng Anh.
 - Review TỪNG FILE một cách chi tiết
+- Input có thể là GIT DIFF/PATCH.
+- CHỈ TẬP TRUNG review các dòng MỚI/SỬA ĐỔI (bắt đầu bằng '+').
+- KHÔNG review các dòng đã xóa (bắt đầu bằng '-').
+- Sử dụng các dòng context (bắt đầu bằng khoảng trắng) để hiểu ngữ cảnh, nhưng không bắt lỗi chúng trừ khi code mới làm hỏng logic.
 - Với mỗi file: nếu OK thì ghi "✅ OK", nếu cần chỉnh sửa thì đưa ra code snippet + vấn đề + đề xuất sửa
 
 Định dạng phản hồi theo Markdown:
@@ -47,6 +51,11 @@ QUAN TRỌNG:
 
 IMPORTANT:
 - Review EACH FILE individually and thoroughly
+- The input code is likely a GIT DIFF/PATCH.
+- FOCUS ONLY on the NEW/MODIFIED lines (starting with '+').
+- DO NOT review deleted lines (starting with '-').
+- Use context lines (starting with space) to understand the code but do not flag issues in them unless the change breaks them.
+- If the input is NOT a diff, review the whole file.
 - For each file: if OK, mark "✅ OK"; if needs changes, provide code snippet + issue + suggested fix
 - Cover bugs, security issues, performance improvements, and best practices
 

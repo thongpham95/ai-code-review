@@ -47,6 +47,20 @@ function getDb(): Database.Database {
         )
     `);
 
+    // Table for tracking pushed comments to GitLab/GitHub
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS pushed_comments (
+            id TEXT PRIMARY KEY,
+            reviewId TEXT NOT NULL,
+            commentIndex INTEGER NOT NULL,
+            fileName TEXT,
+            provider TEXT NOT NULL,
+            externalId TEXT,
+            pushedAt TEXT NOT NULL,
+            FOREIGN KEY (reviewId) REFERENCES reviews(id)
+        )
+    `);
+
     return db;
 }
 
@@ -203,4 +217,67 @@ export function deleteAllReviews(): void {
     const db = getDb();
     db.exec("DELETE FROM reviews");
     db.close();
+}
+
+// Pushed Comments Management
+export interface PushedComment {
+    id: string;
+    reviewId: string;
+    commentIndex: number;
+    fileName?: string;
+    provider: "gitlab" | "github";
+    externalId?: string;
+    pushedAt: string;
+}
+
+export function createPushedComment(data: Omit<PushedComment, "id" | "pushedAt">): PushedComment {
+    const db = getDb();
+    const id = `pc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const pushedComment: PushedComment = {
+        id,
+        pushedAt: new Date().toISOString(),
+        ...data,
+    };
+
+    const stmt = db.prepare(`
+        INSERT INTO pushed_comments (id, reviewId, commentIndex, fileName, provider, externalId, pushedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+        pushedComment.id,
+        pushedComment.reviewId,
+        pushedComment.commentIndex,
+        pushedComment.fileName || null,
+        pushedComment.provider,
+        pushedComment.externalId || null,
+        pushedComment.pushedAt
+    );
+
+    db.close();
+    return pushedComment;
+}
+
+export function getPushedComments(reviewId: string): PushedComment[] {
+    const db = getDb();
+    const rows = db.prepare(
+        "SELECT * FROM pushed_comments WHERE reviewId = ? ORDER BY pushedAt DESC"
+    ).all(reviewId) as PushedComment[];
+    db.close();
+    return rows;
+}
+
+export function isCommentPushed(reviewId: string, commentIndex: number, fileName?: string): boolean {
+    const db = getDb();
+    let query = "SELECT COUNT(*) as count FROM pushed_comments WHERE reviewId = ? AND commentIndex = ?";
+    const params: (string | number)[] = [reviewId, commentIndex];
+
+    if (fileName) {
+        query += " AND fileName = ?";
+        params.push(fileName);
+    }
+
+    const result = db.prepare(query).get(...params) as { count: number };
+    db.close();
+    return result.count > 0;
 }

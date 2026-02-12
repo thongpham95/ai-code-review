@@ -95,12 +95,31 @@ export class PatternScanner {
         for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
             const line = lines[lineIndex];
 
+            // Handle Git Diff format:
+            // - Skip deleted lines (start with -)
+            // - Skip context lines (start with space) IF it looks like a diff
+            // - Process added lines (start with +) by stripping the +
+
+            let contentToScan = line;
+            const isDiff = line.startsWith("+") || line.startsWith("-") || (line.startsWith(" ") && (lines.some(l => l.startsWith("+") || l.startsWith("-"))));
+
+            if (isDiff) {
+                if (line.startsWith("-")) continue; // Deleted line
+                if (line.startsWith(" ")) continue; // Context line (optional: scan for context-dependent issues?)
+                if (line.startsWith("+")) {
+                    contentToScan = line.substring(1); // Strip the +
+                } else {
+                    // Fallback for some diff formats or header lines like '@@ ... @@'
+                    if (line.startsWith("@@")) continue;
+                }
+            }
+
             for (const rule of this.rules) {
                 // Reset lastIndex for global regex
                 rule.pattern.lastIndex = 0;
                 let match;
 
-                while ((match = rule.pattern.exec(line)) !== null) {
+                while ((match = rule.pattern.exec(contentToScan)) !== null) {
                     matches.push({
                         rule: rule.name,
                         severity: rule.severity,

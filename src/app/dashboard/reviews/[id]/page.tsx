@@ -10,7 +10,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, AlertTriangle, AlertCircle, Info, Loader2, Bot, Play, FileCode, FileText, CheckCircle2, Languages, Sparkles, Download, PanelLeftClose, PanelLeft, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, AlertCircle, Info, Loader2, Bot, Play, FileCode, FileText, CheckCircle2, Languages, Sparkles, Download, PanelLeftClose, PanelLeft, Copy, Check, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import { useReactToPrint } from 'react-to-print';
 import { useLanguage } from '@/contexts/language-context';
 import { InlineComment } from '@/components/review/inline-comment';
+import { PushCommentsDialog } from '@/components/review/push-comments-dialog';
 import { parseAIReview, getFileComment, type ParsedAIReview, type AIFileComment } from '@/lib/parse-ai-review';
 
 interface PatternResult {
@@ -68,11 +69,25 @@ export default function ReviewDetailsPage() {
     const [copiedFile, setCopiedFile] = useState<string | null>(null);
     const [parsedAIReview, setParsedAIReview] = useState<ParsedAIReview | null>(null);
     const [showFullAnalysis, setShowFullAnalysis] = useState(false);
+    const [showPushDialog, setShowPushDialog] = useState(false);
 
     const handlePrint = useReactToPrint({
         contentRef: printRef,
         documentTitle: review?.title ? `AI-Review-${review.title}` : 'AI-Code-Review-Report',
     });
+
+    // Load default AI config on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("ai-config");
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.language) {
+                    setReviewLang(parsed.language);
+                }
+            }
+        } catch { /* ignore */ }
+    }, []);
 
     useEffect(() => {
         async function fetchReview() {
@@ -195,6 +210,23 @@ export default function ReviewDetailsPage() {
             const parsed = parseAIReview(accumulated);
             setParsedAIReview(parsed);
 
+            // Save AI analysis to database for persistence
+            if (review?.id && accumulated) {
+                try {
+                    await fetch(`/api/reviews/${review.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            aiAnalysis: accumulated,
+                            status: "completed",
+                            completedAt: new Date().toISOString(),
+                        }),
+                    });
+                } catch (saveError) {
+                    console.error("Failed to save AI analysis:", saveError);
+                }
+            }
+
             toast.success("AI analysis completed!");
         } catch (error) {
             toast.error(`AI analysis failed: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -253,6 +285,19 @@ export default function ReviewDetailsPage() {
         return "text-red-500";
     }
 
+    function handleCommentUpdate(fileName: string, updatedComment: AIFileComment) {
+        if (!parsedAIReview) return;
+
+        const newFileComments = parsedAIReview.fileComments.map(fc =>
+            fc.fileName === fileName ? updatedComment : fc
+        );
+
+        setParsedAIReview({
+            ...parsedAIReview,
+            fileComments: newFileComments
+        });
+    }
+
     if (loading) {
         return (
             <div className="flex-1 flex items-center justify-center">
@@ -302,19 +347,41 @@ export default function ReviewDetailsPage() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                     <Select value={reviewLang} onValueChange={(v) => setReviewLang(v as "en" | "vi")}>
-                        <SelectTrigger className="w-16 h-7 text-[11px]">
-                            <Languages className="h-3 w-3 mr-1" />
-                            <SelectValue />
+                        <SelectTrigger className="w-[120px] h-7 text-[11px] gap-2 border-dashed bg-muted/50 hover:bg-muted/80 transition-colors">
+                            {reviewLang === "en" ? <span className="flex items-center gap-1.5">🇺🇸 AI: English</span> : <span className="flex items-center gap-1.5">🇻🇳 AI: Tiếng Việt</span>}
                         </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="en">EN</SelectItem>
-                            <SelectItem value="vi">VI</SelectItem>
+                        <SelectContent align="end">
+                            <SelectItem value="en">
+                                <span className="flex items-center gap-2">
+                                    <span className="text-base">🇺🇸</span>
+                                    <span>English Response</span>
+                                </span>
+                            </SelectItem>
+                            <SelectItem value="vi">
+                                <span className="flex items-center gap-2">
+                                    <span className="text-base">🇻🇳</span>
+                                    <span>Tiếng Việt Response</span>
+                                </span>
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                     {aiResult && !aiLoading && (
-                        <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => handlePrint()}>
-                            <Download className="h-3 w-3" />
-                        </Button>
+                        <>
+                            <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => handlePrint()}>
+                                <Download className="h-3 w-3" />
+                            </Button>
+                            {parsedAIReview && parsedAIReview.fileComments.some(fc => fc.issues.length > 0) && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-[11px] gap-1"
+                                    onClick={() => setShowPushDialog(true)}
+                                >
+                                    <GitBranch className="h-3 w-3" />
+                                    Push
+                                </Button>
+                            )}
+                        </>
                     )}
                     <Button onClick={runAiAnalysis} disabled={aiLoading} size="sm" className="h-7 px-2.5 text-[11px] gap-1">
                         {aiLoading ? (
@@ -476,7 +543,7 @@ export default function ReviewDetailsPage() {
                                     fileName="pasted-code"
                                     content={review.code}
                                     isExpanded={true}
-                                    onToggle={() => {}}
+                                    onToggle={() => { }}
                                     aiComment={parsedAIReview?.fileComments?.[0] || null}
                                     issues={review.patternResults || []}
                                     onCopy={copyToClipboard}
@@ -494,6 +561,7 @@ export default function ReviewDetailsPage() {
                                         issues={getFileIssues(file.name)}
                                         onCopy={copyToClipboard}
                                         isCopied={copiedFile === file.name}
+                                        onCommentUpdate={handleCommentUpdate}
                                     />
                                 ))
                             ) : (
@@ -558,6 +626,17 @@ export default function ReviewDetailsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Push Comments Dialog */}
+            {parsedAIReview && (
+                <PushCommentsDialog
+                    open={showPushDialog}
+                    onOpenChange={setShowPushDialog}
+                    reviewId={review.id}
+                    sourceUrl={review.sourceUrl}
+                    fileComments={parsedAIReview.fileComments}
+                />
+            )}
         </div>
     );
 }
@@ -572,9 +651,10 @@ interface FileBlockProps {
     issues: PatternResult[]
     onCopy: (content: string, fileName: string) => void
     isCopied: boolean
+    onCommentUpdate?: (fileName: string, updatedComment: AIFileComment) => void
 }
 
-function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues, onCopy, isCopied }: FileBlockProps) {
+function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues, onCopy, isCopied, onCommentUpdate }: FileBlockProps) {
     const lines = content.split('\n');
     const lineCount = lines.length;
     const hasAIFeedback = aiComment && (aiComment.status !== "unknown" || aiComment.issues.length > 0);
@@ -631,16 +711,34 @@ function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues,
                     <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                         <table className="w-full text-xs font-mono">
                             <tbody>
-                                {lines.map((line, i) => (
-                                    <tr key={i} className="hover:bg-muted/30">
-                                        <td className="px-2 py-0 text-right text-[10px] text-muted-foreground select-none w-10 border-r border-border/50 bg-muted/20 sticky left-0">
-                                            {i + 1}
-                                        </td>
-                                        <td className="px-2 py-0 whitespace-pre overflow-visible">
-                                            {line || ' '}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {lines.map((line, i) => {
+                                    const isAddition = line.startsWith('+') && !line.startsWith('+++');
+                                    const isDeletion = line.startsWith('-') && !line.startsWith('---');
+                                    const isHunkHeader = line.startsWith('@@');
+
+                                    return (
+                                        <tr key={i} className={`
+                                            ${isAddition ? 'bg-green-500/10' : ''}
+                                            ${isDeletion ? 'bg-red-500/10' : ''}
+                                            ${isHunkHeader ? 'bg-blue-500/5 text-blue-500' : 'hover:bg-muted/30'}
+                                        `}>
+                                            <td className="px-2 py-0 text-right text-[10px] text-muted-foreground select-none w-10 border-r border-border/50 bg-muted/20 sticky left-0">
+                                                {i + 1}
+                                            </td>
+                                            <td className="px-2 py-0 whitespace-pre overflow-visible font-mono">
+                                                {isAddition ? (
+                                                    <span className="text-green-700 dark:text-green-400">{line}</span>
+                                                ) : isDeletion ? (
+                                                    <span className="text-red-700 dark:text-red-400 select-none opacity-60 decoration-slice line-through">{line}</span>
+                                                ) : isHunkHeader ? (
+                                                    <span className="opacity-80">{line}</span>
+                                                ) : (
+                                                    <span>{line || ' '}</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -648,7 +746,13 @@ function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues,
                     {/* AI Comment (GitHub/GitLab style) */}
                     {hasAIFeedback && (
                         <div className="p-2 bg-muted/10">
-                            <InlineComment fileComment={aiComment!} expanded={true} />
+                            <div className="p-2 bg-muted/10">
+                                <InlineComment
+                                    fileComment={aiComment!}
+                                    expanded={true}
+                                    onSave={(updated) => onCommentUpdate && onCommentUpdate(fileName, updated)}
+                                />
+                            </div>
                         </div>
                     )}
 
@@ -661,14 +765,13 @@ function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues,
                             </div>
                             <div className="space-y-1">
                                 {issues.map((issue, i) => (
-                                    <div key={i} className={`text-[11px] rounded px-1.5 py-1 flex items-start gap-1.5 ${
-                                        issue.severity === "error" ? "bg-red-500/10 text-red-600" :
+                                    <div key={i} className={`text-[11px] rounded px-1.5 py-1 flex items-start gap-1.5 ${issue.severity === "error" ? "bg-red-500/10 text-red-600" :
                                         issue.severity === "warning" ? "bg-yellow-500/10 text-yellow-600" :
-                                        "bg-blue-500/10 text-blue-600"
-                                    }`}>
+                                            "bg-blue-500/10 text-blue-600"
+                                        }`}>
                                         {issue.severity === "error" ? <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" /> :
-                                         issue.severity === "warning" ? <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> :
-                                         <Info className="h-3 w-3 shrink-0 mt-0.5" />}
+                                            issue.severity === "warning" ? <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> :
+                                                <Info className="h-3 w-3 shrink-0 mt-0.5" />}
                                         <div>
                                             <span className="font-medium">L{issue.line}:</span> {issue.message}
                                         </div>
