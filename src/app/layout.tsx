@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthWrapper } from "@/components/auth-wrapper";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LanguageProvider } from "@/contexts/language-context";
 import { Toaster } from "@/components/ui/sonner";
 
 
@@ -38,7 +39,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {children}
+            <LanguageProvider>
+              {children}
+            </LanguageProvider>
           </ThemeProvider>
           <Toaster />
         </AuthWrapper>

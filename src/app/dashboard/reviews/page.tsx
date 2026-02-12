@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Plus, FileCode, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useLanguage } from "@/contexts/language-context"
 
 interface ReviewItem {
     id: string
@@ -18,6 +19,7 @@ interface ReviewItem {
 export default function ReviewsPage() {
     const [reviews, setReviews] = useState<ReviewItem[]>([])
     const [loading, setLoading] = useState(true)
+    const { t } = useLanguage()
 
     useEffect(() => {
         async function fetchReviews() {
@@ -39,41 +41,41 @@ export default function ReviewsPage() {
     function timeAgo(dateStr: string) {
         const diff = Date.now() - new Date(dateStr).getTime()
         const mins = Math.floor(diff / 60000)
-        if (mins < 1) return "just now"
-        if (mins < 60) return `${mins}m ago`
+        if (mins < 1) return t.common.justNow
+        if (mins < 60) return t.common.mAgo(mins)
         const hours = Math.floor(mins / 60)
-        if (hours < 24) return `${hours}h ago`
-        return `${Math.floor(hours / 24)}d ago`
+        if (hours < 24) return t.common.hAgo(hours)
+        return t.common.dAgo(Math.floor(hours / 24))
     }
 
     return (
         <div className="flex-1 space-y-4 p-2 pt-2 md:p-6 md:pt-4">
             <div className="flex items-center justify-between gap-2">
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Reviews</h2>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{t.reviews.title}</h2>
                 <Link href="/dashboard/reviews/new">
                     <Button size="sm" className="md:size-default">
                         <Plus className="mr-1 md:mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">New Review</span>
-                        <span className="sm:hidden">New</span>
+                        <span className="hidden sm:inline">{t.reviews.newReview}</span>
+                        <span className="sm:hidden">{t.common.new}</span>
                     </Button>
                 </Link>
             </div>
 
             {loading ? (
                 <div className="flex items-center justify-center py-16 text-muted-foreground">
-                    Loading reviews...
+                    {t.common.loading}
                 </div>
             ) : reviews.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <FileCode className="h-16 w-16 text-muted-foreground mb-4" />
-                        <CardTitle className="mb-2">No reviews yet</CardTitle>
+                        <CardTitle className="mb-2">{t.reviews.noReviewsTitle}</CardTitle>
                         <CardDescription className="mb-6 text-center">
-                            Start by creating a new code review. You can paste code or provide a GitLab MR URL.
+                            {t.reviews.noReviewsDesc}
                         </CardDescription>
                         <Link href="/dashboard/reviews/new">
                             <Button>
-                                <Plus className="mr-2 h-4 w-4" /> Create First Review
+                                <Plus className="mr-2 h-4 w-4" /> {t.reviews.createFirst}
                             </Button>
                         </Link>
                     </CardContent>
@@ -95,14 +97,14 @@ export default function ReviewsPage() {
                                 <CardContent>
                                     <div className="flex items-center justify-between">
                                         <span className={`text-sm font-medium ${review.status === "completed" ? "text-green-500" :
-                                                review.status === "failed" ? "text-red-500" :
-                                                    "text-blue-500"
+                                            review.status === "failed" ? "text-red-500" :
+                                                "text-blue-500"
                                             }`}>
                                             {review.status}
                                         </span>
                                         {review.patternResults && review.patternResults.length > 0 && (
                                             <span className="text-xs text-yellow-500 font-medium">
-                                                {review.patternResults.length} issues
+                                                {t.reviews.issues(review.patternResults.length)}
                                             </span>
                                         )}
                                     </div>

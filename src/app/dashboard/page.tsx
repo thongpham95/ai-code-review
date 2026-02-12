@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Clock, GitFork, AlertTriangle, Plus, FileCode, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useLanguage } from "@/contexts/language-context"
 
 interface ReviewItem {
     id: string
@@ -26,6 +27,7 @@ export default function DashboardPage() {
     const [reviews, setReviews] = useState<ReviewItem[]>([])
     const [stats, setStats] = useState<Stats>({ totalReviews: 0, totalIssues: 0, completedToday: 0 })
     const [loading, setLoading] = useState(true)
+    const { t } = useLanguage()
 
     useEffect(() => {
         async function fetchData() {
@@ -48,22 +50,22 @@ export default function DashboardPage() {
     function timeAgo(dateStr: string) {
         const diff = Date.now() - new Date(dateStr).getTime()
         const mins = Math.floor(diff / 60000)
-        if (mins < 1) return "just now"
-        if (mins < 60) return `${mins}m ago`
+        if (mins < 1) return t.common.justNow
+        if (mins < 60) return t.common.mAgo(mins)
         const hours = Math.floor(mins / 60)
-        if (hours < 24) return `${hours}h ago`
-        return `${Math.floor(hours / 24)}d ago`
+        if (hours < 24) return t.common.hAgo(hours)
+        return t.common.dAgo(Math.floor(hours / 24))
     }
 
     return (
         <div className="flex-1 space-y-4 p-2 pt-2 md:p-6 md:pt-4">
             <div className="flex items-center justify-between gap-2">
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h2>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{t.dashboard.title}</h2>
                 <Link href="/dashboard/reviews/new">
                     <Button size="sm" className="md:size-default">
                         <Plus className="mr-1 md:mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">New Review</span>
-                        <span className="sm:hidden">New</span>
+                        <span className="hidden sm:inline">{t.dashboard.newReview}</span>
+                        <span className="sm:hidden">{t.common.new}</span>
                     </Button>
                 </Link>
             </div>
@@ -72,31 +74,31 @@ export default function DashboardPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Reviews</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t.dashboard.totalReviews}</CardTitle>
                         <Clock className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.totalReviews}</div>
                         <p className="text-xs text-muted-foreground">
-                            {stats.completedToday} completed today
+                            {t.dashboard.completedToday(stats.completedToday)}
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Issues Found</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t.dashboard.issuesFound}</CardTitle>
                         <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.totalIssues}</div>
                         <p className="text-xs text-muted-foreground">
-                            By pattern scanner
+                            {t.dashboard.byPatternScanner}
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active Repos</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t.dashboard.activeRepos}</CardTitle>
                         <GitFork className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -104,7 +106,7 @@ export default function DashboardPage() {
                             {new Set(reviews.map(r => r.sourceUrl).filter(Boolean)).size}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Unique sources reviewed
+                            {t.dashboard.uniqueSources}
                         </p>
                     </CardContent>
                 </Card>
@@ -113,26 +115,26 @@ export default function DashboardPage() {
             {/* Recent Reviews */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Recent Reviews</CardTitle>
+                    <CardTitle>{t.dashboard.recentReviews}</CardTitle>
                     <CardDescription>
                         {reviews.length === 0
-                            ? "No reviews yet. Create your first review to get started."
-                            : `Showing ${reviews.length} most recent reviews.`
+                            ? t.dashboard.noReviewsYet
+                            : t.dashboard.showingRecent(reviews.length)
                         }
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
                         <div className="flex items-center justify-center py-8 text-muted-foreground">
-                            Loading...
+                            {t.common.loading}
                         </div>
                     ) : reviews.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
                             <FileCode className="h-12 w-12 text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground mb-4">No reviews yet</p>
+                            <p className="text-muted-foreground mb-4">{t.dashboard.noReviews}</p>
                             <Link href="/dashboard/reviews/new">
                                 <Button variant="outline">
-                                    <Plus className="mr-2 h-4 w-4" /> Create First Review
+                                    <Plus className="mr-2 h-4 w-4" /> {t.dashboard.createFirst}
                                 </Button>
                             </Link>
                         </div>
@@ -153,7 +155,7 @@ export default function DashboardPage() {
                                     <div className="flex items-center gap-3">
                                         {review.patternResults && review.patternResults.length > 0 && (
                                             <span className="text-xs font-medium text-yellow-500">
-                                                {review.patternResults.length} issues
+                                                {t.dashboard.issues(review.patternResults.length)}
                                             </span>
                                         )}
                                         <span className={`text-xs font-medium ${review.status === "completed" ? "text-green-500" :

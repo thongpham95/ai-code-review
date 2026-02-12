@@ -1,6 +1,7 @@
 import { SidebarNav } from "@/components/dashboard/sidebar-nav"
 import { UserNav } from "@/components/dashboard/user-nav"
 import { ModeToggle } from "@/components/mode-toggle"
+import { LanguageToggle } from "@/components/language-toggle"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
 import Link from "next/link"
 
@@ -16,6 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         </Link>
                     </div>
                     <div className="flex items-center space-x-2 md:space-x-4">
+                        <LanguageToggle />
                         <ModeToggle />
                         <UserNav />
                     </div>

@@ -7,16 +7,18 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { Menu, LayoutDashboard, FileCode, Settings } from "lucide-react"
-
-const navItems = [
-    { href: "/dashboard", title: "Overview", icon: LayoutDashboard },
-    { href: "/dashboard/reviews", title: "Reviews", icon: FileCode },
-    { href: "/dashboard/settings", title: "Settings", icon: Settings },
-]
+import { useLanguage } from "@/contexts/language-context"
 
 export function MobileNav() {
     const [open, setOpen] = useState(false)
     const pathname = usePathname()
+    const { t } = useLanguage()
+
+    const navItems = [
+        { href: "/dashboard", title: t.nav.overview, icon: LayoutDashboard },
+        { href: "/dashboard/reviews", title: t.nav.reviews, icon: FileCode },
+        { href: "/dashboard/settings", title: t.nav.settings, icon: Settings },
+    ]
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
