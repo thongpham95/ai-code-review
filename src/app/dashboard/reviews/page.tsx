@@ -9,9 +9,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Plus, FileCode, ArrowRight, LayoutGrid, List, Calendar } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Plus, FileCode, ArrowRight, LayoutGrid, List, Calendar, Search } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useLanguage } from "@/contexts/language-context"
 
 interface ReviewItem {
@@ -33,24 +34,39 @@ export default function ReviewsPage() {
     const [viewMode, setViewMode] = useState<ViewMode>("grid")
     const [sortBy, setSortBy] = useState<SortOption>("date")
     const [groupBy, setGroupBy] = useState<GroupOption>("none")
+    const [searchQuery, setSearchQuery] = useState("")
+    const [isSearching, setIsSearching] = useState(false)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const { t } = useLanguage()
 
-    useEffect(() => {
-        async function fetchReviews() {
-            try {
-                const res = await fetch("/api/reviews")
-                if (res.ok) {
-                    const data = await res.json()
-                    setReviews(data.reviews || [])
-                }
-            } catch (error) {
-                console.error("Failed to fetch reviews:", error)
-            } finally {
-                setLoading(false)
+    const fetchReviews = useCallback(async (query?: string) => {
+        try {
+            setIsSearching(true)
+            const url = query ? `/api/reviews?q=${encodeURIComponent(query)}` : "/api/reviews"
+            const res = await fetch(url)
+            if (res.ok) {
+                const data = await res.json()
+                setReviews(data.reviews || [])
             }
+        } catch (error) {
+            console.error("Failed to fetch reviews:", error)
+        } finally {
+            setLoading(false)
+            setIsSearching(false)
         }
-        fetchReviews()
     }, [])
+
+    useEffect(() => {
+        fetchReviews()
+    }, [fetchReviews])
+
+    function handleSearch(value: string) {
+        setSearchQuery(value)
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => {
+            fetchReviews(value.trim() || undefined)
+        }, 300)
+    }
 
     function timeAgo(dateStr: string) {
         const diff = Date.now() - new Date(dateStr).getTime()
@@ -120,8 +136,8 @@ export default function ReviewsPage() {
                     <CardContent>
                         <div className="flex items-center justify-between">
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${review.status === "completed" ? "bg-green-500/10 text-green-600" :
-                                    review.status === "failed" ? "bg-red-500/10 text-red-600" :
-                                        "bg-blue-500/10 text-blue-600"
+                                review.status === "failed" ? "bg-red-500/10 text-red-600" :
+                                    "bg-blue-500/10 text-blue-600"
                                 }`}>
                                 {review.status}
                             </span>
@@ -159,8 +175,8 @@ export default function ReviewsPage() {
                             </span>
                         )}
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${review.status === "completed" ? "bg-green-500/10 text-green-600" :
-                                review.status === "failed" ? "bg-red-500/10 text-red-600" :
-                                    "bg-blue-500/10 text-blue-600"
+                            review.status === "failed" ? "bg-red-500/10 text-red-600" :
+                                "bg-blue-500/10 text-blue-600"
                             }`}>
                             {review.status}
                         </span>
@@ -184,61 +200,70 @@ export default function ReviewsPage() {
                 </Link>
             </div>
 
-            {/* Toolbar: View Mode + Sort + Group */}
-            {reviews.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* View Mode Toggle */}
-                    <div className="flex items-center rounded-lg border p-0.5">
-                        <Button
-                            variant={viewMode === "grid" ? "default" : "ghost"}
-                            size="sm"
-                            className="h-7 px-2"
-                            onClick={() => setViewMode("grid")}
-                        >
-                            <LayoutGrid className="h-3.5 w-3.5 mr-1" />
-                            <span className="text-xs">{t.reviews.gridView}</span>
-                        </Button>
-                        <Button
-                            variant={viewMode === "list" ? "default" : "ghost"}
-                            size="sm"
-                            className="h-7 px-2"
-                            onClick={() => setViewMode("list")}
-                        >
-                            <List className="h-3.5 w-3.5 mr-1" />
-                            <span className="text-xs">{t.reviews.listView}</span>
-                        </Button>
-                    </div>
-
-                    {/* Sort */}
-                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                        <SelectTrigger className="w-auto h-7 text-xs gap-1">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="date">{t.reviews.sortDate}</SelectItem>
-                            <SelectItem value="issues">{t.reviews.sortIssues}</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    {/* Group */}
-                    <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupOption)}>
-                        <SelectTrigger className="w-auto h-7 text-xs gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">{t.reviews.groupNone}</SelectItem>
-                            <SelectItem value="date">{t.reviews.groupDate}</SelectItem>
-                        </SelectContent>
-                    </Select>
+            {/* Toolbar: Search + View Mode + Sort + Group */}
+            <div className="flex flex-wrap items-center gap-2">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[180px] max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                        placeholder={t.reviews.searchPlaceholder}
+                        value={searchQuery}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="h-8 pl-8 text-xs"
+                    />
                 </div>
-            )}
+
+                {/* View Mode Toggle */}
+                <div className="flex items-center rounded-lg border p-0.5">
+                    <Button
+                        variant={viewMode === "grid" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => setViewMode("grid")}
+                    >
+                        <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+                        <span className="text-xs hidden sm:inline">{t.reviews.gridView}</span>
+                    </Button>
+                    <Button
+                        variant={viewMode === "list" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => setViewMode("list")}
+                    >
+                        <List className="h-3.5 w-3.5 mr-1" />
+                        <span className="text-xs hidden sm:inline">{t.reviews.listView}</span>
+                    </Button>
+                </div>
+
+                {/* Sort */}
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                    <SelectTrigger className="w-auto h-7 text-xs gap-1">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="date">{t.reviews.sortDate}</SelectItem>
+                        <SelectItem value="issues">{t.reviews.sortIssues}</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {/* Group */}
+                <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupOption)}>
+                    <SelectTrigger className="w-auto h-7 text-xs gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">{t.reviews.groupNone}</SelectItem>
+                        <SelectItem value="date">{t.reviews.groupDate}</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
 
             {loading ? (
                 <div className="flex items-center justify-center py-16 text-muted-foreground">
                     {t.common.loading}
                 </div>
-            ) : reviews.length === 0 ? (
+            ) : reviews.length === 0 && !searchQuery ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <FileCode className="h-16 w-16 text-muted-foreground mb-4" />
@@ -251,6 +276,16 @@ export default function ReviewsPage() {
                                 <Plus className="mr-2 h-4 w-4" /> {t.reviews.createFirst}
                             </Button>
                         </Link>
+                    </CardContent>
+                </Card>
+            ) : reviews.length === 0 && searchQuery ? (
+                <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-16">
+                        <Search className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                        <CardTitle className="mb-2 text-base">{t.reviews.searchNoResults}</CardTitle>
+                        <CardDescription className="text-center">
+                            &quot;{searchQuery}&quot;
+                        </CardDescription>
                     </CardContent>
                 </Card>
             ) : (

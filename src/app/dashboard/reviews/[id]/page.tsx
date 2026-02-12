@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -92,11 +92,13 @@ export default function ReviewDetailsPage() {
 
     // Helper to get code for analysis - uses 'code' field or combines 'files'
     function getCodeForAnalysis(): string | null {
-        if (review?.code) return review.code;
-        if (review?.files?.length) {
-            return review.files
+        if (review?.code?.trim()) return review.code;
+        if (review?.files && review.files.length > 0) {
+            const combined = review.files
+                .filter(f => f.content?.trim())
                 .map(f => `// ===== File: ${f.name} =====\n${f.content}`)
                 .join('\n\n');
+            return combined || null;
         }
         return null;
     }
@@ -124,10 +126,13 @@ export default function ReviewDetailsPage() {
         }
 
         // Get AI config from localStorage
-        let config: Record<string, unknown> = { useLocal: false, provider: "google", model: "gemini-2.5-flash" };
+        const config: Record<string, string> = { model: "gemini-2.5-flash" };
         try {
             const saved = localStorage.getItem("ai-config");
-            if (saved) config = JSON.parse(saved);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.model) config.model = parsed.model;
+            }
         } catch { /* use defaults */ }
 
         setAiLoading(true);
@@ -491,7 +496,7 @@ export default function ReviewDetailsPage() {
                                     <p className="text-sm text-center max-w-md">
                                         Click the &quot;Run AI Review&quot; button to analyze this code with AI.
                                         <br />
-                                        <span className="text-xs">Uses Ollama (local) or Cloud AI based on your settings.</span>
+                                        <span className="text-xs">Powered by Google Gemini.</span>
                                     </p>
                                     <Button
                                         onClick={runAiAnalysis}

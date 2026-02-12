@@ -1,13 +1,10 @@
-import { openai } from "@ai-sdk/openai"
 import { google } from "@ai-sdk/google"
-import { anthropic } from "@ai-sdk/anthropic"
 import { streamText } from "ai"
-import { updateReview } from "@/lib/review-store"
 
 export async function POST(req: Request) {
-    const { code, config, reviewId, contextDocuments, language = "en" } = await req.json()
+    const { code, config, contextDocuments, language = "en" } = await req.json()
 
-    // Language-specific prompts - Vietnamese needs stronger instruction for local models
+    // Language-specific prompts
     const isVietnamese = language === "vi"
 
     // Build system prompt with context
@@ -92,130 +89,29 @@ corrected code snippet
 
     const userContent = `Code to review:\n\`\`\`\n${code}\n\`\`\``
 
-    if (config?.useLocal) {
-        // Use Ollama directly via fetch (OpenAI-compatible API)
-        const ollamaUrl = config.localUrl || "http://localhost:11434"
-        const model = config.localModel || "codellama"
+    // Google Gemini only
+    const selectedModel = config?.model || "gemini-2.5-flash"
+    const aiModel = google(selectedModel)
 
-        try {
-            const response = await fetch(`${ollamaUrl}/api/chat`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model,
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: userContent },
-                    ],
-                    stream: true,
-                }),
-            })
+    try {
+        const result = await streamText({
+            model: aiModel,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userContent }],
+        })
 
-            if (!response.ok) {
-                const errorText = await response.text()
-                return Response.json(
-                    { error: `Ollama error: ${errorText}` },
-                    { status: 500 }
-                )
-            }
-
-            // Transform Ollama stream to standard text stream
-            const reader = response.body?.getReader()
-            const encoder = new TextEncoder()
-            const decoder = new TextDecoder()
-
-            const stream = new ReadableStream({
-                async start(controller) {
-                    let fullContent = ""
-                    try {
-                        while (reader) {
-                            const { done, value } = await reader.read()
-                            if (done) break
-
-                            const chunk = decoder.decode(value, { stream: true })
-                            const lines = chunk.split("\n").filter(Boolean)
-
-                            for (const line of lines) {
-                                try {
-                                    const json = JSON.parse(line)
-                                    if (json.message?.content) {
-                                        fullContent += json.message.content
-                                        controller.enqueue(
-                                            encoder.encode(json.message.content)
-                                        )
-                                    }
-                                    if (json.done && reviewId) {
-                                        // Update review with AI results when complete
-                                        updateReview(reviewId, {
-                                            aiAnalysis: fullContent,
-                                            status: "completed",
-                                        })
-                                    }
-                                } catch {
-                                    // Skip non-JSON lines
-                                }
-                            }
-                        }
-                    } finally {
-                        controller.close()
-                    }
-                },
-            })
-
-            return new Response(stream, {
-                headers: {
-                    "Content-Type": "text/plain; charset=utf-8",
-                    "Transfer-Encoding": "chunked",
-                },
-            })
-        } catch (error) {
+        return result.toTextStreamResponse()
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        if (errorMessage.includes("API key") || errorMessage.includes("auth") || errorMessage.includes("401")) {
             return Response.json(
-                {
-                    error: `Cannot connect to Ollama at ${ollamaUrl}. Is it running? Error: ${error instanceof Error ? error.message : "Unknown"}`,
-                },
-                { status: 500 }
+                { error: "Missing or invalid Google Gemini API key. Please configure GOOGLE_GENERATIVE_AI_API_KEY in your .env.local file." },
+                { status: 401 }
             )
         }
-    } else {
-        // Cloud provider - select based on config
-        let aiModel;
-        const provider = config?.provider || "google"
-        const selectedModel = config?.model
-
-        switch (provider) {
-            case "google":
-                aiModel = google(selectedModel || "gemini-2.5-flash")
-                break
-            case "anthropic":
-                aiModel = anthropic(selectedModel || "claude-haiku-4-5-20241022")
-                break
-            case "openai":
-            default:
-                aiModel = openai(selectedModel || "gpt-4o-mini")
-                break
-        }
-
-        try {
-            const result = await streamText({
-                model: aiModel,
-                system: systemPrompt,
-                messages: [{ role: "user", content: userContent }],
-            })
-
-            return result.toTextStreamResponse()
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Unknown error"
-            // Check for common API key errors
-            if (errorMessage.includes("API key") || errorMessage.includes("auth") || errorMessage.includes("401")) {
-                return Response.json(
-                    { error: `Missing or invalid API key for ${provider}. Please configure the correct API key in your .env.local file.` },
-                    { status: 401 }
-                )
-            }
-            return Response.json(
-                { error: `AI analysis failed (${provider}): ${errorMessage}` },
-                { status: 500 }
-            )
-        }
+        return Response.json(
+            { error: `AI analysis failed (Gemini ${selectedModel}): ${errorMessage}` },
+            { status: 500 }
+        )
     }
 }

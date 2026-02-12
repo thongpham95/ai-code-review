@@ -1,9 +1,12 @@
-import { NextResponse } from "next/server";
-import { listReviews, getStats } from "@/lib/review-store";
+import { NextRequest, NextResponse } from "next/server";
+import { listReviews, searchReviews, getStats } from "@/lib/review-store";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        const reviews = listReviews();
+        const { searchParams } = new URL(request.url);
+        const query = searchParams.get("q");
+
+        const reviews = query ? searchReviews(query) : listReviews();
         const stats = getStats();
         return NextResponse.json({ reviews, stats });
     } catch (error) {

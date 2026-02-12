@@ -60,6 +60,8 @@ export const dictionaries = {
             groupThisWeek: "This Week",
             groupOlder: "Older",
             issues: (n: number) => `${n} issues`,
+            searchPlaceholder: "Search reviews by title...",
+            searchNoResults: "No reviews match your search.",
         },
         // Create Review
         createReview: {
@@ -76,14 +78,12 @@ export const dictionaries = {
             startReview: "Start Review",
             scanning: "Scanning...",
             // AI Model Selection
-            aiConfig: "AI Configuration",
-            aiConfigDesc: "Choose AI model tier for this review.",
-            tierSaver: "Cost Saver",
-            tierSaverDesc: "Fast & free/cheap — great for routine reviews",
-            tierBalanced: "Balanced",
-            tierBalancedDesc: "Good quality at moderate cost",
-            tierPro: "Pro",
-            tierProDesc: "Best quality for critical code reviews",
+            aiConfig: "AI Model",
+            aiConfigDesc: "Choose Gemini model for this review.",
+            tierFast: "Fast",
+            tierFastDesc: "Gemini Flash — fast & free, great for routine reviews",
+            tierQuality: "Quality",
+            tierQualityDesc: "Gemini Pro — deeper analysis for complex code",
             recommended: "Recommended",
             free: "Free",
             // Context Documents
@@ -120,7 +120,7 @@ export const dictionaries = {
             title: "Settings",
             subtitle: "Manage your account settings and AI preferences.",
             aiConfig: "AI Configuration",
-            aiConfigDesc: "Configure which AI model and provider to use for code reviews.",
+            aiConfigDesc: "Google Gemini is used for all code reviews. Configure your API key in .env.local.",
         },
     },
     vi: {
@@ -184,6 +184,8 @@ export const dictionaries = {
             groupThisWeek: "Tuần này",
             groupOlder: "Cũ hơn",
             issues: (n: number) => `${n} vấn đề`,
+            searchPlaceholder: "Tìm kiếm review theo tiêu đề...",
+            searchNoResults: "Không có review nào phù hợp.",
         },
         // Tạo Review
         createReview: {
@@ -200,14 +202,12 @@ export const dictionaries = {
             startReview: "Bắt đầu Review",
             scanning: "Đang quét...",
             // Chọn Model AI
-            aiConfig: "Cấu hình AI",
-            aiConfigDesc: "Chọn mức độ model AI cho review này.",
-            tierSaver: "Tiết kiệm",
-            tierSaverDesc: "Nhanh & miễn phí/rẻ — phù hợp review hàng ngày",
-            tierBalanced: "Cân bằng",
-            tierBalancedDesc: "Chất lượng tốt với chi phí vừa phải",
-            tierPro: "Chuyên nghiệp",
-            tierProDesc: "Chất lượng tốt nhất cho code quan trọng",
+            aiConfig: "Model AI",
+            aiConfigDesc: "Chọn model Gemini cho review này.",
+            tierFast: "Nhanh",
+            tierFastDesc: "Gemini Flash — nhanh & miễn phí, phù hợp review hàng ngày",
+            tierQuality: "Chất lượng",
+            tierQualityDesc: "Gemini Pro — phân tích sâu cho code phức tạp",
             recommended: "Đề xuất",
             free: "Miễn phí",
             // Tài liệu Context
@@ -244,7 +244,7 @@ export const dictionaries = {
             title: "Cài đặt",
             subtitle: "Quản lý cài đặt tài khoản và tùy chọn AI.",
             aiConfig: "Cấu hình AI",
-            aiConfigDesc: "Cấu hình model và provider AI để review code.",
+            aiConfigDesc: "Google Gemini được dùng cho tất cả code review. Cấu hình API key trong .env.local.",
         },
     },
 };
@@ -271,13 +271,14 @@ export interface Dictionary {
         sortDate: string; sortScore: string; sortIssues: string; groupBy: string;
         groupNone: string; groupDate: string; groupToday: string; groupYesterday: string;
         groupThisWeek: string; groupOlder: string; issues: (n: number) => string;
+        searchPlaceholder: string; searchNoResults: string;
     };
     createReview: {
         title: string; reviewSource: string; reviewSourceDesc: string; connectUrl: string;
         pasteCode: string; repoUrl: string; urlPlaceholder: string; urlHint: string;
         codeLabel: string; codePlaceholder: string; startReview: string; scanning: string;
-        aiConfig: string; aiConfigDesc: string; tierSaver: string; tierSaverDesc: string;
-        tierBalanced: string; tierBalancedDesc: string; tierPro: string; tierProDesc: string;
+        aiConfig: string; aiConfigDesc: string; tierFast: string; tierFastDesc: string;
+        tierQuality: string; tierQualityDesc: string;
         recommended: string; free: string; contextDocs: string; contextDocsDesc: string;
         clickUpload: string; supportedFormats: string; addUrl: string;
         patternResults: string; noIssues: string; foundIssues: (n: number) => string;

@@ -12,7 +12,7 @@ import { toast } from "sonner"
 import {
     Link2, Code, Upload, FileText, X,
     Loader2, AlertTriangle, CheckCircle2, Info, ShieldAlert,
-    Sparkles, Zap, Crown
+    Sparkles, Zap
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
@@ -30,12 +30,11 @@ interface UploadedDoc {
     size: number
 }
 
-type ModelTier = "saver" | "balanced" | "pro"
+type ModelTier = "fast" | "quality"
 
-const MODEL_TIERS: Record<ModelTier, { provider: string; model: string }> = {
-    saver: { provider: "google", model: "gemini-2.5-flash" },
-    balanced: { provider: "google", model: "gemini-2.5-pro" },
-    pro: { provider: "anthropic", model: "claude-sonnet-4-5-20250514" },
+const MODEL_TIERS: Record<ModelTier, { model: string }> = {
+    fast: { model: "gemini-2.5-flash" },
+    quality: { model: "gemini-2.5-pro" },
 }
 
 export default function NewReviewPage() {
@@ -46,7 +45,7 @@ export default function NewReviewPage() {
     const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([])
     const [patternResults, setPatternResults] = useState<PatternMatch[] | null>(null)
     const [reviewId, setReviewId] = useState<string | null>(null)
-    const [selectedTier, setSelectedTier] = useState<ModelTier>("saver")
+    const [selectedTier, setSelectedTier] = useState<ModelTier>("fast")
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -102,13 +101,9 @@ export default function NewReviewPage() {
         const url = formData.get("url") as string
         const code = formData.get("code") as string
 
-        // Save selected model tier to localStorage for use in AI review
+        // Save selected model config to localStorage
         const tierConfig = MODEL_TIERS[selectedTier]
-        const aiConfig = {
-            useLocal: false,
-            provider: tierConfig.provider,
-            model: tierConfig.model,
-        }
+        const aiConfig = { model: tierConfig.model }
         localStorage.setItem("ai-config", JSON.stringify(aiConfig))
 
         try {
@@ -121,8 +116,19 @@ export default function NewReviewPage() {
             }
 
             if (activeTab === "url" && url.trim()) {
-                const token = sessionStorage.getItem("gitlab-pat") || ""
-                const baseUrl = sessionStorage.getItem("gitlab-url") || ""
+                // Read token from sessionStorage first, fallback to persistent localStorage config
+                let token = sessionStorage.getItem("gitlab-pat") || ""
+                let baseUrl = sessionStorage.getItem("gitlab-url") || ""
+                if (!token || !baseUrl) {
+                    try {
+                        const saved = localStorage.getItem("gitlab-self-hosted-config")
+                        if (saved) {
+                            const config = JSON.parse(saved)
+                            if (!token && config.token) token = config.token
+                            if (!baseUrl && config.url) baseUrl = config.url
+                        }
+                    } catch { /* ignore parse errors */ }
+                }
 
                 const mrRes = await fetch("/api/gitlab/fetch-mr", {
                     method: "POST",
@@ -140,10 +146,18 @@ export default function NewReviewPage() {
                             }
                         }
                     }
+                    if (files.length === 0) {
+                        toast.error("MR fetched but contains no file diffs. The MR may have no code changes or diffs are too large.")
+                        setIsLoading(false)
+                        return
+                    }
                     toast.success(`Fetched MR: ${mrData.mr.title} (${files.length} files)`)
                 } else {
-                    toast.info("Could not fetch MR diff. Running pattern scan on context only.")
-                    reviewTitle = url
+                    const errData = await mrRes.json().catch(() => ({ error: "Unknown error" }))
+                    const errMsg = errData.error || `HTTP ${mrRes.status}`
+                    toast.error(`Failed to fetch MR: ${errMsg}. Check your GitLab token in Settings.`)
+                    setIsLoading(false)
+                    return
                 }
             }
 
@@ -193,27 +207,22 @@ export default function NewReviewPage() {
 
     const tierCards: { key: ModelTier; icon: React.ReactNode; badge?: string; badgeClass?: string }[] = [
         {
-            key: "saver",
+            key: "fast",
             icon: <Zap className="h-5 w-5 text-green-500" />,
             badge: t.createReview.free,
             badgeClass: "bg-green-500/10 text-green-600 border-green-500/20",
         },
         {
-            key: "balanced",
+            key: "quality",
             icon: <Sparkles className="h-5 w-5 text-blue-500" />,
             badge: t.createReview.recommended,
             badgeClass: "bg-blue-500/10 text-blue-600 border-blue-500/20",
         },
-        {
-            key: "pro",
-            icon: <Crown className="h-5 w-5 text-purple-500" />,
-        },
     ]
 
     const tierLabels: Record<ModelTier, { name: string; desc: string }> = {
-        saver: { name: t.createReview.tierSaver, desc: t.createReview.tierSaverDesc },
-        balanced: { name: t.createReview.tierBalanced, desc: t.createReview.tierBalancedDesc },
-        pro: { name: t.createReview.tierPro, desc: t.createReview.tierProDesc },
+        fast: { name: t.createReview.tierFast, desc: t.createReview.tierFastDesc },
+        quality: { name: t.createReview.tierQuality, desc: t.createReview.tierQualityDesc },
     }
 
     return (
@@ -232,15 +241,15 @@ export default function NewReviewPage() {
                             <CardDescription>{t.createReview.aiConfigDesc}</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
                                 {tierCards.map(({ key, icon, badge, badgeClass }) => (
                                     <button
                                         key={key}
                                         type="button"
                                         onClick={() => setSelectedTier(key)}
                                         className={`relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md ${selectedTier === key
-                                                ? "border-primary bg-primary/5 shadow-sm"
-                                                : "border-border hover:border-muted-foreground/30"
+                                            ? "border-primary bg-primary/5 shadow-sm"
+                                            : "border-border hover:border-muted-foreground/30"
                                             }`}
                                     >
                                         <div className="flex items-center gap-2 w-full">

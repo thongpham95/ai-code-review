@@ -162,6 +162,15 @@ export function listReviews(): Review[] {
     return rows.map(rowToReview);
 }
 
+export function searchReviews(query: string): Review[] {
+    const db = getDb();
+    const rows = db.prepare(
+        "SELECT * FROM reviews WHERE title LIKE ? ORDER BY createdAt DESC LIMIT 50"
+    ).all(`%${query}%`) as Record<string, unknown>[];
+    db.close();
+    return rows.map(rowToReview);
+}
+
 export function getStats(): { totalReviews: number; totalIssues: number; completedToday: number } {
     const db = getDb();
     const today = new Date().toISOString().split("T")[0];
