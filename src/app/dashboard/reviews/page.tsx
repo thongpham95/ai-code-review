@@ -2,7 +2,14 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, FileCode, ArrowRight } from "lucide-react"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Plus, FileCode, ArrowRight, LayoutGrid, List, Calendar } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useLanguage } from "@/contexts/language-context"
@@ -16,9 +23,16 @@ interface ReviewItem {
     patternResults?: { severity: string }[]
 }
 
+type ViewMode = "grid" | "list"
+type SortOption = "date" | "issues"
+type GroupOption = "none" | "date"
+
 export default function ReviewsPage() {
     const [reviews, setReviews] = useState<ReviewItem[]>([])
     const [loading, setLoading] = useState(true)
+    const [viewMode, setViewMode] = useState<ViewMode>("grid")
+    const [sortBy, setSortBy] = useState<SortOption>("date")
+    const [groupBy, setGroupBy] = useState<GroupOption>("none")
     const { t } = useLanguage()
 
     useEffect(() => {
@@ -48,6 +62,115 @@ export default function ReviewsPage() {
         return t.common.dAgo(Math.floor(hours / 24))
     }
 
+    function getDateGroup(dateStr: string): string {
+        const now = new Date()
+        const date = new Date(dateStr)
+        const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+        if (diffDays === 0) return t.reviews.groupToday
+        if (diffDays === 1) return t.reviews.groupYesterday
+        if (diffDays <= 7) return t.reviews.groupThisWeek
+        return t.reviews.groupOlder
+    }
+
+    const sortedReviews = [...reviews].sort((a, b) => {
+        if (sortBy === "date") {
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        }
+        if (sortBy === "issues") {
+            return (b.patternResults?.length || 0) - (a.patternResults?.length || 0)
+        }
+        return 0
+    })
+
+    const groupedReviews: { group: string; items: ReviewItem[] }[] = []
+    if (groupBy === "date") {
+        const groups = new Map<string, ReviewItem[]>()
+        for (const review of sortedReviews) {
+            const group = getDateGroup(review.createdAt)
+            if (!groups.has(group)) groups.set(group, [])
+            groups.get(group)!.push(review)
+        }
+        for (const [group, items] of groups) {
+            groupedReviews.push({ group, items })
+        }
+    } else {
+        groupedReviews.push({ group: "", items: sortedReviews })
+    }
+
+    function truncateTitle(title: string, maxLen: number) {
+        if (title.length <= maxLen) return title
+        return title.substring(0, maxLen) + "…"
+    }
+
+    function ReviewGridCard({ review }: { review: ReviewItem }) {
+        return (
+            <Link href={`/dashboard/reviews/${review.id}`}>
+                <Card className="hover:border-primary/50 transition-all cursor-pointer h-full overflow-hidden hover:shadow-md">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                            <CardTitle className="text-sm truncate flex-1 min-w-0" title={review.title}>
+                                {truncateTitle(review.title, 40)}
+                            </CardTitle>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </div>
+                        <CardDescription className="truncate text-xs">
+                            {timeAgo(review.createdAt)} · {review.source}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${review.status === "completed" ? "bg-green-500/10 text-green-600" :
+                                    review.status === "failed" ? "bg-red-500/10 text-red-600" :
+                                        "bg-blue-500/10 text-blue-600"
+                                }`}>
+                                {review.status}
+                            </span>
+                            {review.patternResults && review.patternResults.length > 0 && (
+                                <span className="text-xs text-yellow-600 font-medium">
+                                    {t.reviews.issues(review.patternResults.length)}
+                                </span>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </Link>
+        )
+    }
+
+    function ReviewListItem({ review }: { review: ReviewItem }) {
+        return (
+            <Link href={`/dashboard/reviews/${review.id}`}>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3 hover:bg-muted/50 hover:shadow-sm transition-all cursor-pointer">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <FileCode className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate" title={review.title}>
+                                {truncateTitle(review.title, 60)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {timeAgo(review.createdAt)} · {review.source}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        {review.patternResults && review.patternResults.length > 0 && (
+                            <span className="text-xs font-medium text-yellow-600">
+                                {t.reviews.issues(review.patternResults.length)}
+                            </span>
+                        )}
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${review.status === "completed" ? "bg-green-500/10 text-green-600" :
+                                review.status === "failed" ? "bg-red-500/10 text-red-600" :
+                                    "bg-blue-500/10 text-blue-600"
+                            }`}>
+                            {review.status}
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                </div>
+            </Link>
+        )
+    }
+
     return (
         <div className="flex-1 space-y-4 p-2 pt-2 md:p-6 md:pt-4">
             <div className="flex items-center justify-between gap-2">
@@ -60,6 +183,56 @@ export default function ReviewsPage() {
                     </Button>
                 </Link>
             </div>
+
+            {/* Toolbar: View Mode + Sort + Group */}
+            {reviews.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center rounded-lg border p-0.5">
+                        <Button
+                            variant={viewMode === "grid" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setViewMode("grid")}
+                        >
+                            <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+                            <span className="text-xs">{t.reviews.gridView}</span>
+                        </Button>
+                        <Button
+                            variant={viewMode === "list" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setViewMode("list")}
+                        >
+                            <List className="h-3.5 w-3.5 mr-1" />
+                            <span className="text-xs">{t.reviews.listView}</span>
+                        </Button>
+                    </div>
+
+                    {/* Sort */}
+                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                        <SelectTrigger className="w-auto h-7 text-xs gap-1">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="date">{t.reviews.sortDate}</SelectItem>
+                            <SelectItem value="issues">{t.reviews.sortIssues}</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    {/* Group */}
+                    <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupOption)}>
+                        <SelectTrigger className="w-auto h-7 text-xs gap-1">
+                            <Calendar className="h-3 w-3" />
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">{t.reviews.groupNone}</SelectItem>
+                            <SelectItem value="date">{t.reviews.groupDate}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -81,36 +254,30 @@ export default function ReviewsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {reviews.map((review) => (
-                        <Link key={review.id} href={`/dashboard/reviews/${review.id}`}>
-                            <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full overflow-hidden">
-                                <CardHeader className="pb-2">
-                                    <div className="flex items-center justify-between gap-2 min-w-0">
-                                        <CardTitle className="text-base truncate flex-1 min-w-0" title={review.title}>
-                                            {review.title}
-                                        </CardTitle>
-                                        <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    </div>
-                                    <CardDescription className="truncate">{timeAgo(review.createdAt)} · {review.source}</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex items-center justify-between">
-                                        <span className={`text-sm font-medium ${review.status === "completed" ? "text-green-500" :
-                                            review.status === "failed" ? "text-red-500" :
-                                                "text-blue-500"
-                                            }`}>
-                                            {review.status}
-                                        </span>
-                                        {review.patternResults && review.patternResults.length > 0 && (
-                                            <span className="text-xs text-yellow-500 font-medium">
-                                                {t.reviews.issues(review.patternResults.length)}
-                                            </span>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                <div className="space-y-6">
+                    {groupedReviews.map(({ group, items }) => (
+                        <div key={group || "all"}>
+                            {group && (
+                                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    {group}
+                                    <span className="text-xs font-normal">({items.length})</span>
+                                </h3>
+                            )}
+                            {viewMode === "grid" ? (
+                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                    {items.map((review) => (
+                                        <ReviewGridCard key={review.id} review={review} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {items.map((review) => (
+                                        <ReviewListItem key={review.id} review={review} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     ))}
                 </div>
             )}

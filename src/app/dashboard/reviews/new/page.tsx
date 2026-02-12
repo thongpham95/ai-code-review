@@ -11,8 +11,10 @@ import { useState, useRef } from "react"
 import { toast } from "sonner"
 import {
     Link2, Code, Upload, FileText, X,
-    Loader2, AlertTriangle, CheckCircle2, Info, ShieldAlert
+    Loader2, AlertTriangle, CheckCircle2, Info, ShieldAlert,
+    Sparkles, Zap, Crown
 } from "lucide-react"
+import { useLanguage } from "@/contexts/language-context"
 
 interface PatternMatch {
     rule: string
@@ -28,13 +30,23 @@ interface UploadedDoc {
     size: number
 }
 
+type ModelTier = "saver" | "balanced" | "pro"
+
+const MODEL_TIERS: Record<ModelTier, { provider: string; model: string }> = {
+    saver: { provider: "google", model: "gemini-2.5-flash" },
+    balanced: { provider: "google", model: "gemini-2.5-pro" },
+    pro: { provider: "anthropic", model: "claude-sonnet-4-5-20250514" },
+}
+
 export default function NewReviewPage() {
     const router = useRouter()
+    const { t } = useLanguage()
     const [isLoading, setIsLoading] = useState(false)
     const [activeTab, setActiveTab] = useState<"url" | "paste">("url")
     const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([])
     const [patternResults, setPatternResults] = useState<PatternMatch[] | null>(null)
     const [reviewId, setReviewId] = useState<string | null>(null)
+    const [selectedTier, setSelectedTier] = useState<ModelTier>("saver")
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -65,7 +77,6 @@ export default function NewReviewPage() {
                 toast.error(`Upload failed for ${file.name}`)
             }
         }
-        // Reset input
         if (fileInputRef.current) fileInputRef.current.value = ""
     }
 
@@ -73,23 +84,12 @@ export default function NewReviewPage() {
         setUploadedDocs(prev => prev.filter((_, i) => i !== index))
     }
 
-    // Helper to generate title from pasted code
     function generateCodeTitle(code: string): string {
         const lines = code.trim().split('\n')
         const firstLine = lines[0].trim()
-
-        // Try to extract meaningful info from first line
         const functionMatch = firstLine.match(/(?:function|def|const|class|export)\s+(\w+)/)
-        if (functionMatch) {
-            return `Code Review: ${functionMatch[1]}`
-        }
-
-        // Use first line if short enough
-        if (firstLine.length > 0 && firstLine.length <= 50) {
-            return `Code Review: ${firstLine}`
-        }
-
-        // Default with timestamp
+        if (functionMatch) return `Code Review: ${functionMatch[1]}`
+        if (firstLine.length > 0 && firstLine.length <= 50) return `Code Review: ${firstLine}`
         return `Code Review - ${new Date().toLocaleString()}`
     }
 
@@ -102,8 +102,16 @@ export default function NewReviewPage() {
         const url = formData.get("url") as string
         const code = formData.get("code") as string
 
+        // Save selected model tier to localStorage for use in AI review
+        const tierConfig = MODEL_TIERS[selectedTier]
+        const aiConfig = {
+            useLocal: false,
+            provider: tierConfig.provider,
+            model: tierConfig.model,
+        }
+        localStorage.setItem("ai-config", JSON.stringify(aiConfig))
+
         try {
-            // Prepare files for scanning
             const files: { name: string; content: string }[] = []
             let reviewTitle = ""
 
@@ -113,7 +121,6 @@ export default function NewReviewPage() {
             }
 
             if (activeTab === "url" && url.trim()) {
-                // Try to fetch MR diff
                 const token = sessionStorage.getItem("gitlab-pat") || ""
                 const baseUrl = sessionStorage.getItem("gitlab-url") || ""
 
@@ -125,11 +132,7 @@ export default function NewReviewPage() {
 
                 if (mrRes.ok) {
                     const mrData = await mrRes.json()
-                    // Use MR title for review title
-                    if (mrData.mr?.title) {
-                        reviewTitle = mrData.mr.title
-                    }
-                    // Extract diffs as files
+                    if (mrData.mr?.title) reviewTitle = mrData.mr.title
                     if (mrData.mr?.changes) {
                         for (const change of mrData.mr.changes) {
                             if (change.diff) {
@@ -139,13 +142,11 @@ export default function NewReviewPage() {
                     }
                     toast.success(`Fetched MR: ${mrData.mr.title} (${files.length} files)`)
                 } else {
-                    // If MR fetch fails, treat URL as just a reference
                     toast.info("Could not fetch MR diff. Running pattern scan on context only.")
                     reviewTitle = url
                 }
             }
 
-            // Start review with pattern scan
             const contextDocs = uploadedDocs.map(d => ({ name: d.name, text: d.text }))
 
             const reviewRes = await fetch("/api/reviews/start", {
@@ -163,9 +164,7 @@ export default function NewReviewPage() {
 
             const reviewData = await reviewRes.json()
 
-            if (!reviewRes.ok) {
-                throw new Error(reviewData.error || "Review failed")
-            }
+            if (!reviewRes.ok) throw new Error(reviewData.error || "Review failed")
 
             setReviewId(reviewData.reviewId)
             setPatternResults(reviewData.patternScan.matches)
@@ -192,21 +191,84 @@ export default function NewReviewPage() {
         }
     }
 
+    const tierCards: { key: ModelTier; icon: React.ReactNode; badge?: string; badgeClass?: string }[] = [
+        {
+            key: "saver",
+            icon: <Zap className="h-5 w-5 text-green-500" />,
+            badge: t.createReview.free,
+            badgeClass: "bg-green-500/10 text-green-600 border-green-500/20",
+        },
+        {
+            key: "balanced",
+            icon: <Sparkles className="h-5 w-5 text-blue-500" />,
+            badge: t.createReview.recommended,
+            badgeClass: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+        },
+        {
+            key: "pro",
+            icon: <Crown className="h-5 w-5 text-purple-500" />,
+        },
+    ]
+
+    const tierLabels: Record<ModelTier, { name: string; desc: string }> = {
+        saver: { name: t.createReview.tierSaver, desc: t.createReview.tierSaverDesc },
+        balanced: { name: t.createReview.tierBalanced, desc: t.createReview.tierBalancedDesc },
+        pro: { name: t.createReview.tierPro, desc: t.createReview.tierProDesc },
+    }
+
     return (
         <div className="flex-1 space-y-4 p-2 pt-2 md:p-6 md:pt-4">
             <div className="flex items-center justify-between">
-                <h2 className="text-xl md:text-3xl font-bold tracking-tight">Create New Review</h2>
+                <h2 className="text-xl md:text-3xl font-bold tracking-tight">{t.createReview.title}</h2>
             </div>
 
             <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
                 {/* Main Form */}
                 <div className="lg:col-span-2 space-y-4">
+                    {/* AI Model Tier Selection */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Review Source</CardTitle>
-                            <CardDescription>
-                                Provide code via URL or paste directly.
-                            </CardDescription>
+                            <CardTitle>{t.createReview.aiConfig}</CardTitle>
+                            <CardDescription>{t.createReview.aiConfigDesc}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                {tierCards.map(({ key, icon, badge, badgeClass }) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setSelectedTier(key)}
+                                        className={`relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md ${selectedTier === key
+                                                ? "border-primary bg-primary/5 shadow-sm"
+                                                : "border-border hover:border-muted-foreground/30"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-2 w-full">
+                                            {icon}
+                                            <span className="font-semibold text-sm">{tierLabels[key].name}</span>
+                                            {badge && (
+                                                <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${badgeClass}`}>
+                                                    {badge}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                            {tierLabels[key].desc}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground/70 font-mono">
+                                            {MODEL_TIERS[key].model}
+                                        </p>
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Review Source */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>{t.createReview.reviewSource}</CardTitle>
+                            <CardDescription>{t.createReview.reviewSourceDesc}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             {/* Tab Buttons */}
@@ -217,7 +279,7 @@ export default function NewReviewPage() {
                                     onClick={() => setActiveTab("url")}
                                     type="button"
                                 >
-                                    <Link2 className="mr-2 h-4 w-4" /> Connect URL
+                                    <Link2 className="mr-2 h-4 w-4" /> {t.createReview.connectUrl}
                                 </Button>
                                 <Button
                                     variant={activeTab === "paste" ? "default" : "outline"}
@@ -225,7 +287,7 @@ export default function NewReviewPage() {
                                     onClick={() => setActiveTab("paste")}
                                     type="button"
                                 >
-                                    <Code className="mr-2 h-4 w-4" /> Paste Code
+                                    <Code className="mr-2 h-4 w-4" /> {t.createReview.pasteCode}
                                 </Button>
                             </div>
 
@@ -233,14 +295,14 @@ export default function NewReviewPage() {
                                 {activeTab === "url" && (
                                     <div className="space-y-3">
                                         <div className="space-y-2">
-                                            <Label htmlFor="url">Repository / MR URL</Label>
+                                            <Label htmlFor="url">{t.createReview.repoUrl}</Label>
                                             <Input
                                                 id="url"
-                                                placeholder="https://gitlab.example.com/group/project/-/merge_requests/123"
+                                                placeholder={t.createReview.urlPlaceholder}
                                                 name="url"
                                             />
                                             <p className="text-xs text-muted-foreground">
-                                                Supports GitLab MR URLs. The diff will be fetched automatically.
+                                                {t.createReview.urlHint}
                                             </p>
                                         </div>
                                     </div>
@@ -248,11 +310,11 @@ export default function NewReviewPage() {
 
                                 {activeTab === "paste" && (
                                     <div className="space-y-2">
-                                        <Label htmlFor="code">Code to Review</Label>
+                                        <Label htmlFor="code">{t.createReview.codeLabel}</Label>
                                         <Textarea
                                             id="code"
                                             name="code"
-                                            placeholder="// Paste your code here..."
+                                            placeholder={t.createReview.codePlaceholder}
                                             className="h-48 font-mono text-sm"
                                         />
                                     </div>
@@ -260,9 +322,9 @@ export default function NewReviewPage() {
 
                                 <Button type="submit" disabled={isLoading} className="w-full">
                                     {isLoading ? (
-                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning...</>
+                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t.createReview.scanning}</>
                                     ) : (
-                                        <><CheckCircle2 className="mr-2 h-4 w-4" /> Start Review</>
+                                        <><CheckCircle2 className="mr-2 h-4 w-4" /> {t.createReview.startReview}</>
                                     )}
                                 </Button>
                             </form>
@@ -275,7 +337,7 @@ export default function NewReviewPage() {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-lg">
-                                        Pattern Scan Results
+                                        {t.createReview.patternResults}
                                     </CardTitle>
                                     {reviewId && (
                                         <Button
@@ -283,14 +345,14 @@ export default function NewReviewPage() {
                                             size="sm"
                                             onClick={() => router.push(`/dashboard/reviews/${reviewId}`)}
                                         >
-                                            View Full Report
+                                            {t.createReview.viewReport}
                                         </Button>
                                     )}
                                 </div>
                                 <CardDescription>
                                     {patternResults.length === 0
-                                        ? "No issues detected by pattern scanner."
-                                        : `Found ${patternResults.length} potential issues.`
+                                        ? t.createReview.noIssues
+                                        : t.createReview.foundIssues(patternResults.length)
                                     }
                                 </CardDescription>
                             </CardHeader>
@@ -301,8 +363,8 @@ export default function NewReviewPage() {
                                             <div
                                                 key={i}
                                                 className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${match.severity === "error" ? "border-red-500/30 bg-red-500/5" :
-                                                        match.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
-                                                            "border-blue-500/30 bg-blue-500/5"
+                                                    match.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
+                                                        "border-blue-500/30 bg-blue-500/5"
                                                     }`}
                                             >
                                                 {severityIcon(match.severity)}
@@ -330,10 +392,10 @@ export default function NewReviewPage() {
                         <CardHeader>
                             <CardTitle className="text-lg">
                                 <Upload className="inline mr-2 h-4 w-4" />
-                                Context Documents
+                                {t.createReview.contextDocs}
                             </CardTitle>
                             <CardDescription>
-                                Upload project docs to help AI understand business logic.
+                                {t.createReview.contextDocsDesc}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
@@ -343,10 +405,10 @@ export default function NewReviewPage() {
                             >
                                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                                 <p className="text-sm text-muted-foreground">
-                                    Click to upload
+                                    {t.createReview.clickUpload}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    PDF, Word, Excel, Text, Draw.io
+                                    {t.createReview.supportedFormats}
                                 </p>
                             </div>
                             <input
@@ -384,7 +446,7 @@ export default function NewReviewPage() {
 
                             <Separator />
                             <div className="space-y-2">
-                                <Label className="text-xs">Or add a Figma / URL reference</Label>
+                                <Label className="text-xs">{t.createReview.addUrl}</Label>
                                 <Input
                                     placeholder="https://www.figma.com/file/..."
                                     className="text-xs"
