@@ -115,7 +115,7 @@ export default function ReviewDetailsPage() {
         }
 
         // Get AI config from localStorage
-        let config = { useLocal: true, localUrl: "http://localhost:11434", localModel: "qwen2.5-coder:7b" };
+        let config: Record<string, unknown> = { useLocal: false, provider: "google", model: "gemini-2.5-flash" };
         try {
             const saved = localStorage.getItem("ai-config");
             if (saved) config = JSON.parse(saved);
@@ -391,11 +391,10 @@ export default function ReviewDetailsPage() {
                                     {review.patternResults.map((issue, i) => (
                                         <div
                                             key={i}
-                                            className={`rounded-lg border p-4 ${
-                                                issue.severity === "error" ? "border-red-500/30 bg-red-500/5" :
-                                                issue.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
-                                                "border-blue-500/30 bg-blue-500/5"
-                                            }`}
+                                            className={`rounded-lg border p-4 ${issue.severity === "error" ? "border-red-500/30 bg-red-500/5" :
+                                                    issue.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
+                                                        "border-blue-500/30 bg-blue-500/5"
+                                                }`}
                                         >
                                             <div className="flex items-start gap-3">
                                                 {getSeverityIcon(issue.severity)}

@@ -1,4 +1,6 @@
 import { openai } from "@ai-sdk/openai"
+import { google } from "@ai-sdk/google"
+import { anthropic } from "@ai-sdk/anthropic"
 import { streamText } from "ai"
 import { updateReview } from "@/lib/review-store"
 
@@ -175,15 +177,45 @@ corrected code snippet
             )
         }
     } else {
-        // Cloud provider (OpenAI)
-        const model = openai("gpt-4-turbo")
+        // Cloud provider - select based on config
+        let aiModel;
+        const provider = config?.provider || "google"
+        const selectedModel = config?.model
 
-        const result = await streamText({
-            model,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userContent }],
-        })
+        switch (provider) {
+            case "google":
+                aiModel = google(selectedModel || "gemini-2.5-flash")
+                break
+            case "anthropic":
+                aiModel = anthropic(selectedModel || "claude-haiku-4-5-20241022")
+                break
+            case "openai":
+            default:
+                aiModel = openai(selectedModel || "gpt-4o-mini")
+                break
+        }
 
-        return result.toTextStreamResponse()
+        try {
+            const result = await streamText({
+                model: aiModel,
+                system: systemPrompt,
+                messages: [{ role: "user", content: userContent }],
+            })
+
+            return result.toTextStreamResponse()
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error"
+            // Check for common API key errors
+            if (errorMessage.includes("API key") || errorMessage.includes("auth") || errorMessage.includes("401")) {
+                return Response.json(
+                    { error: `Missing or invalid API key for ${provider}. Please configure the correct API key in your .env.local file.` },
+                    { status: 401 }
+                )
+            }
+            return Response.json(
+                { error: `AI analysis failed (${provider}): ${errorMessage}` },
+                { status: 500 }
+            )
+        }
     }
 }

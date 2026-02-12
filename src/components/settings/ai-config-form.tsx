@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { useState, useEffect } from "react"
-import { Loader2, CheckCircle2, XCircle, Wifi } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, Wifi, Sparkles } from "lucide-react"
 
 const aiFormSchema = z.object({
     provider: z.string().min(1, {
@@ -41,10 +41,35 @@ const aiFormSchema = z.object({
 type AiFormValues = z.infer<typeof aiFormSchema>
 
 const defaultValues: Partial<AiFormValues> = {
-    provider: "openai",
+    provider: "google",
+    model: "gemini-2.5-flash",
+    apiKey: "",
     useLocal: false,
     localUrl: "http://localhost:11434",
     localModel: "qwen2.5-coder:7b",
+}
+
+const PROVIDER_MODELS: Record<string, { value: string; label: string; price: string; badge?: string }[]> = {
+    google: [
+        { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", price: "$0.10 / $0.40 per 1M tokens", badge: "Cheapest" },
+        { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", price: "$0.30 / $2.50 per 1M tokens", badge: "Recommended" },
+        { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", price: "$1.25 / $10 per 1M tokens", badge: "Best Quality" },
+    ],
+    anthropic: [
+        { value: "claude-haiku-4-5-20241022", label: "Claude Haiku 4.5", price: "$1.00 / $5.00 per 1M tokens", badge: "Fast" },
+        { value: "claude-sonnet-4-5-20241022", label: "Claude Sonnet 4.5", price: "$3.00 / $15.00 per 1M tokens", badge: "Best Quality" },
+    ],
+    openai: [
+        { value: "gpt-4o-mini", label: "GPT-4o Mini", price: "$0.15 / $0.60 per 1M tokens", badge: "Cheapest" },
+        { value: "gpt-4o", label: "GPT-4o", price: "$2.50 / $10.00 per 1M tokens" },
+        { value: "gpt-4-turbo", label: "GPT-4 Turbo", price: "$10.00 / $30.00 per 1M tokens" },
+    ],
+}
+
+const PROVIDER_INFO: Record<string, { freeTier: string | null; envVar: string }> = {
+    google: { freeTier: "Free: ~250 requests/day", envVar: "GOOGLE_GENERATIVE_AI_API_KEY" },
+    anthropic: { freeTier: null, envVar: "ANTHROPIC_API_KEY" },
+    openai: { freeTier: null, envVar: "OPENAI_API_KEY" },
 }
 
 export function AiConfigForm() {
@@ -77,7 +102,7 @@ export function AiConfigForm() {
         } catch {
             // Ignore parse errors, use defaults
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     function onSubmit(data: AiFormValues) {
@@ -92,6 +117,7 @@ export function AiConfigForm() {
     }
 
     const useLocal = useWatch({ control: form.control, name: "useLocal" })
+    const selectedProvider = useWatch({ control: form.control, name: "provider" })
 
     async function checkOllamaStatus() {
         setOllamaStatus("checking")
@@ -187,49 +213,113 @@ export function AiConfigForm() {
                 />
 
                 {!useLocal ? (
-                    <>
+                    <div className="space-y-4">
                         <FormField
                             control={form.control}
                             name="provider"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>AI Provider</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select
+                                        onValueChange={(value) => {
+                                            field.onChange(value)
+                                            // Auto-select default model for new provider
+                                            const models = PROVIDER_MODELS[value]
+                                            if (models?.length) {
+                                                const defaultModel = models.find(m => m.badge === "Recommended") || models[0]
+                                                form.setValue("model", defaultModel.value)
+                                            }
+                                        }}
+                                        value={field.value}
+                                    >
                                         <FormControl>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Select a provider" />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
+                                            <SelectItem value="google">
+                                                <span className="flex items-center gap-2">Google Gemini <span className="text-xs text-green-600 font-medium">Free Tier</span></span>
+                                            </SelectItem>
+                                            <SelectItem value="anthropic">Anthropic Claude</SelectItem>
                                             <SelectItem value="openai">OpenAI</SelectItem>
-                                            <SelectItem value="anthropic">Anthropic</SelectItem>
-                                            <SelectItem value="google">Google Gemini</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <FormDescription>
-                                        Select the Cloud AI provider you want to use.
+                                        {selectedProvider && PROVIDER_INFO[selectedProvider]?.freeTier ? (
+                                            <span className="flex items-center gap-1 text-green-600">
+                                                <Sparkles className="h-3 w-3" />
+                                                {PROVIDER_INFO[selectedProvider].freeTier}
+                                            </span>
+                                        ) : (
+                                            <>API key required. Set <code className="text-xs bg-muted px-1 py-0.5 rounded">{selectedProvider ? PROVIDER_INFO[selectedProvider]?.envVar : ""}</code> in .env.local</>
+                                        )}
                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
+
+                        {/* Model Selection */}
+                        {selectedProvider && PROVIDER_MODELS[selectedProvider] && (
+                            <FormField
+                                control={form.control}
+                                name="model"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Model</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a model" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {PROVIDER_MODELS[selectedProvider].map((m) => (
+                                                    <SelectItem key={m.value} value={m.value}>
+                                                        <span className="flex items-center gap-2">
+                                                            {m.label}
+                                                            {m.badge && (
+                                                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${m.badge === "Recommended" ? "bg-blue-500/10 text-blue-600" :
+                                                                    m.badge === "Cheapest" ? "bg-green-500/10 text-green-600" :
+                                                                        m.badge === "Best Quality" ? "bg-purple-500/10 text-purple-600" :
+                                                                            m.badge === "Fast" ? "bg-orange-500/10 text-orange-600" :
+                                                                                "bg-muted text-muted-foreground"
+                                                                    }`}>
+                                                                    {m.badge}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormDescription>
+                                            {PROVIDER_MODELS[selectedProvider].find(m => m.value === field.value)?.price || "Select a model"}
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+
                         <FormField
                             control={form.control}
                             name="apiKey"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>API Key</FormLabel>
+                                    <FormLabel>API Key (Browser-stored override)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="sk-..." type="password" {...field} />
+                                        <Input placeholder={selectedProvider === "google" ? "AIza..." : selectedProvider === "anthropic" ? "sk-ant-..." : "sk-..."} type="password" {...field} />
                                     </FormControl>
                                     <FormDescription>
-                                        Your API Key is stored locally in your browser.
+                                        Optional. Server uses env variable by default. Only set this to override.
                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
-                    </>
+                    </div>
                 ) : (
                     <div className="space-y-4">
                         {/* Ollama Status & Controls */}
