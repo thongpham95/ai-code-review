@@ -2,7 +2,7 @@
 
 ## AI Code Review - Ứng dụng Review Code Tự động
 
-**Phiên bản:** 2.1.0
+**Phiên bản:** 2.2.0
 **Ngày cập nhật:** 2026-02-12
 **Tác giả:** thongpham95
 
@@ -11,7 +11,7 @@
 ## 1. Tổng quan sản phẩm
 
 ### 1.1 Mục đích
-AI Code Review là ứng dụng web giúp lập trình viên review code tự động bằng AI, tích hợp với GitLab để tối ưu hóa quy trình code review trong team. Phiên bản 2.1 đơn giản hoá AI provider (chỉ dùng Google Gemini miễn phí), thêm tính năng tìm kiếm review, và hoàn thiện trải nghiệm đa ngôn ngữ.
+AI Code Review là ứng dụng web giúp lập trình viên review code tự động bằng AI, tích hợp với GitLab để tối ưu hóa quy trình code review trong team. Phiên bản 2.2 hoàn thiện giao diện GitHub/GitLab-like với inline AI comments và chuẩn bị cho Phase 3 Deep Integration.
 
 ### 1.2 Vấn đề cần giải quyết
 - Code review thủ công tốn nhiều thời gian.
@@ -81,18 +81,38 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 
 ## 4. Roadmap & Tính năng tương lai
 
-### Phase 2: UI/UX & Optimization (Hoàn thành — v2.1)
+### Phase 2: UI/UX & Optimization (Hoàn thành — v2.2)
 - [x] Hỗ trợ đa ngôn ngữ (i18n).
 - [x] Chọn Model AI (Gemini Flash / Pro).
 - [x] Giao diện Review List (Grid/List, Sort, Group).
 - [x] Export PDF.
 - [x] **Tìm kiếm Review** theo title, từ khoá.
 - [x] **Đơn giản hoá**: chỉ giữ Gemini, xoá Anthropic/OpenAI.
+- [x] **GitHub/GitLab-like UI**: Giao diện review giống GitHub/GitLab.
+- [x] **Inline AI Comments**: AI comment hiển thị trực tiếp dưới mỗi file.
+- [x] **Unified View**: Gộp Code & AI Review thành 1 giao diện thống nhất.
+- [x] **Optimized UI Density**: Giảm padding, hiển thị nhiều nội dung hơn.
 
 ### Phase 3: Deep Integration (Dự kiến Q3 2026)
-- [ ] **Git Integration**: Comment/push code trực tiếp từ app.
-- [ ] **RAG / NotebookLM**: Upload tài liệu để AI học context dự án.
-- [ ] **Rich Diff View**: Xem diff kèm AI comment inline.
+
+#### 3.1 Git Integration (P0)
+- [ ] **Push to GitLab**: Đẩy AI comment lên GitLab MR.
+- [ ] **Push to GitHub**: Đẩy AI comment lên GitHub PR.
+- [ ] **Comment Selection**: Chọn comment nào muốn push.
+- [ ] **Push Status Tracking**: Theo dõi comment đã push.
+
+#### 3.2 RAG Enhancement (P1)
+- [ ] **Document Library**: Quản lý tài liệu context (persistent).
+- [ ] **Project Association**: Gắn tài liệu với dự án.
+- [ ] **Smart Chunking**: Chia nhỏ tài liệu lớn, chọn phần liên quan.
+- [ ] **Multi-format Support**: MD, TXT, PDF, Code.
+
+#### 3.3 Webhook Auto-Review (P2)
+- [ ] **GitLab Webhook**: Tự động review khi có MR mới.
+- [ ] **GitHub Webhook**: Tự động review khi có PR mới.
+- [ ] **Auto-post Results**: Tự động đăng kết quả lên MR/PR.
+
+> Chi tiết: Xem `IMPLEMENTATION_PLAN_PHASE3.md`
 
 ---
 
