@@ -121,8 +121,8 @@ if (isOnDashboard && !isLoggedIn) {
 
 **Files:**
 - `src/lib/review-store.ts` - SQLite storage
-- `src/app/api/reviews/route.ts` - List/Create reviews
-- `src/app/api/reviews/[id]/route.ts` - Get single review
+- `src/app/api/reviews/[id]/route.ts` - Get single review, Delete review
+- `src/app/api/reviews/route.ts` - Bulk delete reviews (DELETE)
 - `src/app/api/reviews/start/route.ts` - Start new review
 
 **Database Schema:**
@@ -149,8 +149,9 @@ CREATE TABLE reviews (
 | Method | Endpoint | Request | Response |
 |--------|----------|---------|----------|
 | GET | `/api/reviews` | - | `{ reviews: Review[], stats: Stats }` |
+| DELETE | `/api/reviews` | `{ ids: string[] }` | `{ success: boolean }` |
 | GET | `/api/reviews/[id]` | - | `Review` |
-| POST | `/api/reviews/start` | `{ title, source, code, files }` | `{ reviewId, patternScan }` |
+| POST | `/api/reviews/start` | `{ title, source, code, files, mrUrls, lang }` | `{ reviewId, patternScan }` |
 
 ### 2.3 AI Analysis Module
 
@@ -193,7 +194,7 @@ const stream = new ReadableStream({
 
 | Provider | Config | Use Case |
 |----------|--------|----------|
-| OpenAI | `OPENAI_API_KEY` | Cloud, high quality |
+| Google Gemini | `GOOGLE_GENERATIVE_AI_API_KEY` | Flash-only siêu nhanh, mặc định |
 | Ollama | `localUrl`, `localModel` | Local, private, free |
 
 ### 2.4 Pattern Scanner Module

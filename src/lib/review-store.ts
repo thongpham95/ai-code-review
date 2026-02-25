@@ -1,4 +1,3 @@
-import { PatternMatch } from "./pattern-scanner";
 import Database from "better-sqlite3";
 import path from "path";
 
@@ -10,13 +9,16 @@ export interface Review {
     status: "pending" | "scanning" | "reviewing" | "completed" | "failed";
     createdAt: string;
     completedAt?: string;
-    patternResults?: PatternMatch[];
+    patternResults?: unknown[];
     aiResults?: string;
     aiAnalysis?: string;
+    quickSummary?: string;
     code?: string;
     files?: { name: string; content: string; diff?: string }[];
     contextDocs?: { name: string; text: string }[];
     contextDocuments?: { name: string; content: string }[];
+    aiModel?: string;
+    customRules?: string;
 }
 
 // SQLite persistent store - shared across all workers via file
@@ -43,9 +45,16 @@ function getDb(): Database.Database {
             code TEXT,
             files TEXT,
             contextDocs TEXT,
-            contextDocuments TEXT
+            contextDocuments TEXT,
+            aiModel TEXT,
+            quickSummary TEXT,
+            customRules TEXT
         )
     `);
+
+    // Migrate: add columns if missing
+    try { db.exec(`ALTER TABLE reviews ADD COLUMN quickSummary TEXT`); } catch { /* already exists */ }
+    try { db.exec(`ALTER TABLE reviews ADD COLUMN customRules TEXT`); } catch { /* already exists */ }
 
     // Table for tracking pushed comments to GitLab/GitHub
     db.exec(`
@@ -80,6 +89,9 @@ function rowToReview(row: Record<string, unknown>): Review {
         files: row.files ? JSON.parse(row.files as string) : undefined,
         contextDocs: row.contextDocs ? JSON.parse(row.contextDocs as string) : undefined,
         contextDocuments: row.contextDocuments ? JSON.parse(row.contextDocuments as string) : undefined,
+        aiModel: row.aiModel as string | undefined,
+        quickSummary: row.quickSummary as string | undefined,
+        customRules: row.customRules as string | undefined,
     };
 }
 
@@ -94,8 +106,8 @@ export function createReview(data: Omit<Review, "id" | "createdAt" | "status">):
     };
 
     const stmt = db.prepare(`
-        INSERT INTO reviews (id, title, source, sourceUrl, status, createdAt, completedAt, patternResults, aiResults, aiAnalysis, code, files, contextDocs, contextDocuments)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO reviews (id, title, source, sourceUrl, status, createdAt, completedAt, patternResults, aiResults, aiAnalysis, quickSummary, code, files, contextDocs, contextDocuments, aiModel, customRules)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -109,10 +121,13 @@ export function createReview(data: Omit<Review, "id" | "createdAt" | "status">):
         review.patternResults ? JSON.stringify(review.patternResults) : null,
         review.aiResults || null,
         review.aiAnalysis || null,
+        review.quickSummary || null,
         review.code || null,
         review.files ? JSON.stringify(review.files) : null,
         review.contextDocs ? JSON.stringify(review.contextDocs) : null,
         review.contextDocuments ? JSON.stringify(review.contextDocuments) : null,
+        review.aiModel || null,
+        review.customRules || null,
     );
 
     db.close();
@@ -150,6 +165,9 @@ export function updateReview(id: string, data: Partial<Review>): Review | undefi
         files: (v) => v ? JSON.stringify(v) : null,
         contextDocs: (v) => v ? JSON.stringify(v) : null,
         contextDocuments: (v) => v ? JSON.stringify(v) : null,
+        aiModel: (v) => v,
+        quickSummary: (v) => v,
+        customRules: (v) => v,
     };
 
     for (const [key, transform] of Object.entries(fieldMap)) {
@@ -215,8 +233,27 @@ export function getStats(): { totalReviews: number; totalIssues: number; complet
 
 export function deleteAllReviews(): void {
     const db = getDb();
+    db.exec("DELETE FROM pushed_comments");
     db.exec("DELETE FROM reviews");
     db.close();
+}
+
+export function deleteReview(id: string): boolean {
+    const db = getDb();
+    db.prepare("DELETE FROM pushed_comments WHERE reviewId = ?").run(id);
+    const result = db.prepare("DELETE FROM reviews WHERE id = ?").run(id);
+    db.close();
+    return result.changes > 0;
+}
+
+export function deleteReviews(ids: string[]): number {
+    if (ids.length === 0) return 0;
+    const db = getDb();
+    const placeholders = ids.map(() => "?").join(", ");
+    db.prepare(`DELETE FROM pushed_comments WHERE reviewId IN (${placeholders})`).run(...ids);
+    const result = db.prepare(`DELETE FROM reviews WHERE id IN (${placeholders})`).run(...ids);
+    db.close();
+    return result.changes;
 }
 
 // Pushed Comments Management

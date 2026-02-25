@@ -1,7 +1,7 @@
 "use client"
 
 import { Separator } from "@/components/ui/separator"
-import { AiConfigForm } from "@/components/settings/ai-config-form"
+
 import { GitAccountsForm } from "@/components/settings/git-accounts-form"
 import { useLanguage } from "@/contexts/language-context"
 
@@ -32,18 +32,6 @@ export default function SettingsPage() {
                         </div>
                         <Separator />
                         <GitAccountsForm />
-                    </div>
-
-                    {/* AI Config Section */}
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="text-lg font-medium">{t.settings.aiConfig}</h3>
-                            <p className="text-sm text-muted-foreground">
-                                {t.settings.aiConfigDesc}
-                            </p>
-                        </div>
-                        <Separator />
-                        <AiConfigForm />
                     </div>
                 </div>
             </div>

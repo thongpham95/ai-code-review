@@ -2,7 +2,7 @@ import { google } from "@ai-sdk/google"
 import { streamText } from "ai"
 
 export async function POST(req: Request) {
-    const { code, config, contextDocuments, language = "en" } = await req.json()
+    const { code, config, contextDocuments, language = "en", customRules } = await req.json()
 
     // Language-specific prompts
     const isVietnamese = language === "vi"
@@ -87,6 +87,15 @@ corrected code snippet
 
 (Repeat for ALL files in the review)`
 
+    // Inject custom review rules/focus from user
+    if (customRules && customRules.trim()) {
+        const focusLabel = isVietnamese ? "YÊU CẦU REVIEW ĐẶC BIỆT TỪ NGƯỜI DÙNG" : "CUSTOM REVIEW FOCUS FROM USER"
+        const focusInstruction = isVietnamese
+            ? "Hãy ĐẶC BIỆT chú ý đến các yêu cầu sau khi review code"
+            : "Pay SPECIAL attention to the following requirements when reviewing"
+        systemPrompt += `\n\n### ${focusLabel}\n${focusInstruction}:\n${customRules.trim()}`
+    }
+
     // Inject context documents if available
     if (contextDocuments && contextDocuments.length > 0) {
         systemPrompt += `\n\nThe following project documents provide business context for the review:\n`
@@ -98,9 +107,8 @@ corrected code snippet
 
     const userContent = `Code to review:\n\`\`\`\n${code}\n\`\`\``
 
-    // Google Gemini only
-    const selectedModel = config?.model || "gemini-2.5-flash"
-    const aiModel = google(selectedModel)
+    // Google Gemini Flash only (simplified - no model selection)
+    const aiModel = google("gemini-2.5-flash")
 
     try {
         const result = await streamText({
@@ -119,7 +127,7 @@ corrected code snippet
             )
         }
         return Response.json(
-            { error: `AI analysis failed (Gemini ${selectedModel}): ${errorMessage}` },
+            { error: `AI analysis failed (Gemini Flash): ${errorMessage}` },
             { status: 500 }
         )
     }

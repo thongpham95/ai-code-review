@@ -11,30 +11,15 @@ import { useState, useRef, useEffect } from "react"
 import { toast } from "sonner"
 import {
     Link2, Code, Upload, FileText, X,
-    Loader2, AlertTriangle, CheckCircle2, Info, ShieldAlert,
-    Sparkles, Zap
+    Loader2, AlertTriangle, CheckCircle2,
+    Languages, Target
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
-
-interface PatternMatch {
-    rule: string
-    severity: "error" | "warning" | "info"
-    line: number
-    message: string
-    snippet: string
-}
 
 interface UploadedDoc {
     name: string
     text: string
     size: number
-}
-
-type ModelTier = "fast" | "quality"
-
-const MODEL_TIERS: Record<ModelTier, { model: string }> = {
-    fast: { model: "gemini-2.5-flash" },
-    quality: { model: "gemini-2.5-pro" },
 }
 
 export default function NewReviewPage() {
@@ -43,9 +28,7 @@ export default function NewReviewPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [activeTab, setActiveTab] = useState<"url" | "paste">("url")
     const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([])
-    const [patternResults, setPatternResults] = useState<PatternMatch[] | null>(null)
-    const [reviewId, setReviewId] = useState<string | null>(null)
-    const [selectedTier, setSelectedTier] = useState<ModelTier>("fast")
+    const [reviewLang, setReviewLang] = useState<"en" | "vi">("en")
     const [hasGitAccounts, setHasGitAccounts] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -62,14 +45,11 @@ export default function NewReviewPage() {
                     return
                 }
             }
-            // Fallback for session storage checks
             const sessionToken = sessionStorage.getItem("gitlab-pat")
             if (sessionToken) {
                 setHasGitAccounts(true)
                 return
             }
-
-            // IF no accounts, default to paste and set flag
             setHasGitAccounts(false)
             setActiveTab("paste")
         } catch {
@@ -122,19 +102,116 @@ export default function NewReviewPage() {
         return `Code Review - ${new Date().toLocaleString()}`
     }
 
+    function parseUrls(raw: string): string[] {
+        return raw
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0 && (line.startsWith('http://') || line.startsWith('https://')))
+    }
+
+    async function fetchSingleUrl(url: string): Promise<{ title: string; files: { name: string; content: string }[] } | null> {
+        const isGitHub = url.includes("github.com") && url.includes("/pull/")
+        const isGitLab = url.includes("/-/merge_requests/") || url.includes("gitlab")
+
+        if (isGitHub) {
+            let githubToken = ""
+            try {
+                const saved = localStorage.getItem("git-accounts")
+                if (saved) {
+                    const accounts = JSON.parse(saved)
+                    githubToken = accounts.github?.token || ""
+                }
+            } catch { /* ignore */ }
+
+            const prRes = await fetch("/api/github/fetch-pr", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url, token: githubToken }),
+            })
+
+            if (prRes.ok) {
+                const prData = await prRes.json()
+                const files: { name: string; content: string }[] = []
+                if (prData.pr?.changes) {
+                    for (const change of prData.pr.changes) {
+                        if (change.diff) {
+                            files.push({ name: change.new_path || change.old_path, content: change.diff })
+                        }
+                    }
+                }
+                return { title: prData.pr?.title || url, files }
+            } else {
+                const errData = await prRes.json().catch(() => ({ error: "Unknown error" }))
+                toast.error(`Failed to fetch PR: ${errData.error || `HTTP ${prRes.status}`}`)
+                return null
+            }
+        } else if (isGitLab) {
+            let gitlabToken = ""
+            let baseUrl = ""
+            try {
+                const saved = localStorage.getItem("git-accounts")
+                if (saved) {
+                    const accounts = JSON.parse(saved)
+                    if (accounts.gitlabSelfHosted?.url && url.includes(accounts.gitlabSelfHosted.url.replace(/^https?:\/\//, ""))) {
+                        gitlabToken = accounts.gitlabSelfHosted?.token || ""
+                        baseUrl = accounts.gitlabSelfHosted?.url || ""
+                    } else {
+                        gitlabToken = accounts.gitlab?.token || ""
+                    }
+                }
+            } catch { /* ignore */ }
+
+            if (!gitlabToken) {
+                gitlabToken = sessionStorage.getItem("gitlab-pat") || ""
+                baseUrl = sessionStorage.getItem("gitlab-url") || ""
+                if (!gitlabToken || !baseUrl) {
+                    try {
+                        const saved = localStorage.getItem("gitlab-self-hosted-config")
+                        if (saved) {
+                            const config = JSON.parse(saved)
+                            if (!gitlabToken && config.token) gitlabToken = config.token
+                            if (!baseUrl && config.url) baseUrl = config.url
+                        }
+                    } catch { /* ignore */ }
+                }
+            }
+
+            const mrRes = await fetch("/api/gitlab/fetch-mr", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url, token: gitlabToken, customBaseUrl: baseUrl }),
+            })
+
+            if (mrRes.ok) {
+                const mrData = await mrRes.json()
+                const files: { name: string; content: string }[] = []
+                if (mrData.mr?.changes) {
+                    for (const change of mrData.mr.changes) {
+                        if (change.diff) {
+                            files.push({ name: change.new_path || change.old_path, content: change.diff })
+                        }
+                    }
+                }
+                return { title: mrData.mr?.title || url, files }
+            } else {
+                const errData = await mrRes.json().catch(() => ({ error: "Unknown error" }))
+                toast.error(`Failed to fetch MR: ${errData.error || `HTTP ${mrRes.status}`}`)
+                return null
+            }
+        } else {
+            toast.error(`Invalid URL: ${url}`)
+            return null
+        }
+    }
+
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
-        setPatternResults(null)
 
         const formData = new FormData(event.currentTarget)
-        const url = formData.get("url") as string
+        const urlsRaw = formData.get("urls") as string
         const code = formData.get("code") as string
-
-        // Save selected model config to localStorage
-        const tierConfig = MODEL_TIERS[selectedTier]
-        const aiConfig = { model: tierConfig.model }
-        localStorage.setItem("ai-config", JSON.stringify(aiConfig))
+        const customRules = formData.get("customRules") as string
 
         try {
             const files: { name: string; content: string }[] = []
@@ -145,119 +222,32 @@ export default function NewReviewPage() {
                 reviewTitle = generateCodeTitle(code)
             }
 
-            if (activeTab === "url" && url.trim()) {
-                // Detect URL type: GitHub or GitLab
-                const isGitHub = url.includes("github.com") && url.includes("/pull/")
-                const isGitLab = url.includes("/-/merge_requests/") || url.includes("gitlab")
-
-                if (isGitHub) {
-                    // GitHub PR flow
-                    let githubToken = ""
-                    try {
-                        const saved = localStorage.getItem("git-accounts")
-                        if (saved) {
-                            const accounts = JSON.parse(saved)
-                            githubToken = accounts.github?.token || ""
-                        }
-                    } catch { /* ignore */ }
-
-                    const prRes = await fetch("/api/github/fetch-pr", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ url, token: githubToken }),
-                    })
-
-                    if (prRes.ok) {
-                        const prData = await prRes.json()
-                        if (prData.pr?.title) reviewTitle = prData.pr.title
-                        if (prData.pr?.changes) {
-                            for (const change of prData.pr.changes) {
-                                if (change.diff) {
-                                    files.push({ name: change.new_path || change.old_path, content: change.diff })
-                                }
-                            }
-                        }
-                        if (files.length === 0) {
-                            toast.error("PR fetched but contains no file diffs. The PR may have no code changes or diffs are too large.")
-                            setIsLoading(false)
-                            return
-                        }
-                        toast.success(`Fetched PR: ${prData.pr.title} (${files.length} files)`)
-                    } else {
-                        const errData = await prRes.json().catch(() => ({ error: "Unknown error" }))
-                        const errMsg = errData.error || `HTTP ${prRes.status}`
-                        toast.error(`Failed to fetch PR: ${errMsg}. Check your GitHub token in Settings.`)
-                        setIsLoading(false)
-                        return
-                    }
-                } else if (isGitLab) {
-                    // GitLab MR flow
-                    let gitlabToken = ""
-                    let baseUrl = ""
-                    try {
-                        const saved = localStorage.getItem("git-accounts")
-                        if (saved) {
-                            const accounts = JSON.parse(saved)
-                            // Check if it's self-hosted GitLab
-                            if (accounts.gitlabSelfHosted?.url && url.includes(accounts.gitlabSelfHosted.url.replace(/^https?:\/\//, ""))) {
-                                gitlabToken = accounts.gitlabSelfHosted?.token || ""
-                                baseUrl = accounts.gitlabSelfHosted?.url || ""
-                            } else {
-                                gitlabToken = accounts.gitlab?.token || ""
-                            }
-                        }
-                    } catch { /* ignore */ }
-
-                    // Fallback to old storage
-                    if (!gitlabToken) {
-                        gitlabToken = sessionStorage.getItem("gitlab-pat") || ""
-                        baseUrl = sessionStorage.getItem("gitlab-url") || ""
-                        if (!gitlabToken || !baseUrl) {
-                            try {
-                                const saved = localStorage.getItem("gitlab-self-hosted-config")
-                                if (saved) {
-                                    const config = JSON.parse(saved)
-                                    if (!gitlabToken && config.token) gitlabToken = config.token
-                                    if (!baseUrl && config.url) baseUrl = config.url
-                                }
-                            } catch { /* ignore */ }
-                        }
-                    }
-
-                    const mrRes = await fetch("/api/gitlab/fetch-mr", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ url, token: gitlabToken, customBaseUrl: baseUrl }),
-                    })
-
-                    if (mrRes.ok) {
-                        const mrData = await mrRes.json()
-                        if (mrData.mr?.title) reviewTitle = mrData.mr.title
-                        if (mrData.mr?.changes) {
-                            for (const change of mrData.mr.changes) {
-                                if (change.diff) {
-                                    files.push({ name: change.new_path || change.old_path, content: change.diff })
-                                }
-                            }
-                        }
-                        if (files.length === 0) {
-                            toast.error("MR fetched but contains no file diffs. The MR may have no code changes or diffs are too large.")
-                            setIsLoading(false)
-                            return
-                        }
-                        toast.success(`Fetched MR: ${mrData.mr.title} (${files.length} files)`)
-                    } else {
-                        const errData = await mrRes.json().catch(() => ({ error: "Unknown error" }))
-                        const errMsg = errData.error || `HTTP ${mrRes.status}`
-                        toast.error(`Failed to fetch MR: ${errMsg}. Check your GitLab token in Settings.`)
-                        setIsLoading(false)
-                        return
-                    }
-                } else {
-                    toast.error("Invalid URL. Please use a GitHub PR or GitLab MR URL.")
+            if (activeTab === "url" && urlsRaw.trim()) {
+                const urls = parseUrls(urlsRaw)
+                if (urls.length === 0) {
+                    toast.error("No valid URLs found. Please enter URLs starting with http:// or https://")
                     setIsLoading(false)
                     return
                 }
+
+                const results = await Promise.allSettled(urls.map(u => fetchSingleUrl(u)))
+                const titles: string[] = []
+
+                for (const result of results) {
+                    if (result.status === "fulfilled" && result.value) {
+                        titles.push(result.value.title)
+                        files.push(...result.value.files)
+                    }
+                }
+
+                if (files.length === 0) {
+                    toast.error("All URL fetches returned no file diffs.")
+                    setIsLoading(false)
+                    return
+                }
+
+                reviewTitle = titles.length === 1 ? titles[0] : `Review: ${titles.length} MR/PRs`
+                toast.success(`Fetched ${files.length} files from ${titles.length} URL(s)`)
             }
 
             const contextDocs = uploadedDocs.map(d => ({ name: d.name, text: d.text }))
@@ -268,60 +258,26 @@ export default function NewReviewPage() {
                 body: JSON.stringify({
                     title: reviewTitle || "Code Review",
                     source: activeTab === "url" ? "custom-url" : "paste",
-                    sourceUrl: url || undefined,
+                    sourceUrl: activeTab === "url" ? urlsRaw.trim().split('\n')[0] : undefined,
                     code: activeTab === "paste" ? code : undefined,
                     files,
                     contextDocs,
+                    aiModel: "gemini-2.5-flash",
+                    customRules: customRules?.trim() || undefined,
                 }),
             })
 
             const reviewData = await reviewRes.json()
-
             if (!reviewRes.ok) throw new Error(reviewData.error || "Review failed")
 
-            setReviewId(reviewData.reviewId)
-            setPatternResults(reviewData.patternScan.matches)
-
-            const summary = reviewData.patternScan.summary
-            if (summary.total === 0) {
-                toast.success("Pattern scan complete. No issues found! 🎉")
-            } else {
-                toast.warning(`Pattern scan found ${summary.total} issues (${summary.errors} errors, ${summary.warnings} warnings)`)
-            }
+            // 1-Click: Auto-redirect to detail page to trigger AI review
+            router.push(`/dashboard/reviews/${reviewData.reviewId}?autoReview=true&lang=${reviewLang}`)
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
             toast.error(errorMessage)
         } finally {
             setIsLoading(false)
         }
-    }
-
-    const severityIcon = (severity: string) => {
-        switch (severity) {
-            case "error": return <ShieldAlert className="h-4 w-4 text-red-500" />
-            case "warning": return <AlertTriangle className="h-4 w-4 text-yellow-500" />
-            default: return <Info className="h-4 w-4 text-blue-500" />
-        }
-    }
-
-    const tierCards: { key: ModelTier; icon: React.ReactNode; badge?: string; badgeClass?: string }[] = [
-        {
-            key: "fast",
-            icon: <Zap className="h-5 w-5 text-green-500" />,
-            badge: t.createReview.free,
-            badgeClass: "bg-green-500/10 text-green-600 border-green-500/20",
-        },
-        {
-            key: "quality",
-            icon: <Sparkles className="h-5 w-5 text-blue-500" />,
-            badge: t.createReview.recommended,
-            badgeClass: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-        },
-    ]
-
-    const tierLabels: Record<ModelTier, { name: string; desc: string }> = {
-        fast: { name: t.createReview.tierFast, desc: t.createReview.tierFastDesc },
-        quality: { name: t.createReview.tierQuality, desc: t.createReview.tierQualityDesc },
     }
 
     return (
@@ -333,41 +289,45 @@ export default function NewReviewPage() {
             <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
                 {/* Main Form */}
                 <div className="lg:col-span-2 space-y-4">
-                    {/* AI Model Tier Selection */}
+                    {/* AI Language Selection */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>{t.createReview.aiConfig}</CardTitle>
-                            <CardDescription>{t.createReview.aiConfigDesc}</CardDescription>
+                            <CardTitle className="flex items-center gap-2">
+                                <Languages className="h-5 w-5" />
+                                {t.createReview.aiLang}
+                            </CardTitle>
+                            <CardDescription>{t.createReview.aiLangDesc}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="grid gap-3 sm:grid-cols-2">
-                                {tierCards.map(({ key, icon, badge, badgeClass }) => (
-                                    <button
-                                        key={key}
-                                        type="button"
-                                        onClick={() => setSelectedTier(key)}
-                                        className={`relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md ${selectedTier === key
-                                            ? "border-primary bg-primary/5 shadow-sm"
-                                            : "border-border hover:border-muted-foreground/30"
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-2 w-full">
-                                            {icon}
-                                            <span className="font-semibold text-sm">{tierLabels[key].name}</span>
-                                            {badge && (
-                                                <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${badgeClass}`}>
-                                                    {badge}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-muted-foreground leading-relaxed">
-                                            {tierLabels[key].desc}
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground/70 font-mono">
-                                            {MODEL_TIERS[key].model}
-                                        </p>
-                                    </button>
-                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => setReviewLang("en")}
+                                    className={`relative flex items-center gap-3 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md ${reviewLang === "en"
+                                        ? "border-primary bg-primary/5 shadow-sm"
+                                        : "border-border hover:border-muted-foreground/30"
+                                        }`}
+                                >
+                                    <span className="text-2xl">🇺🇸</span>
+                                    <div>
+                                        <span className="font-semibold text-sm">{t.createReview.langEn}</span>
+                                        <p className="text-xs text-muted-foreground">AI will respond in English</p>
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setReviewLang("vi")}
+                                    className={`relative flex items-center gap-3 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md ${reviewLang === "vi"
+                                        ? "border-primary bg-primary/5 shadow-sm"
+                                        : "border-border hover:border-muted-foreground/30"
+                                        }`}
+                                >
+                                    <span className="text-2xl">🇻🇳</span>
+                                    <div>
+                                        <span className="font-semibold text-sm">{t.createReview.langVi}</span>
+                                        <p className="text-xs text-muted-foreground">AI sẽ trả lời bằng Tiếng Việt</p>
+                                    </div>
+                                </button>
                             </div>
                         </CardContent>
                     </Card>
@@ -379,7 +339,6 @@ export default function NewReviewPage() {
                             <CardDescription>{t.createReview.reviewSourceDesc}</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {/* Tab Buttons */}
                             <div className="flex gap-2 mb-4">
                                 <Button
                                     variant={activeTab === "url" ? "default" : "outline"}
@@ -408,19 +367,19 @@ export default function NewReviewPage() {
                                                 <div>
                                                     <p className="font-semibold">No Git Accounts Configured</p>
                                                     <p className="text-xs opacity-90 mt-1">
-                                                        You need to connect GitHub or GitLab in <a href="/dashboard/settings" className="underline underline-offset-2 hover:text-yellow-700">Settings</a> to fetch code from URLs.
-                                                        You can still use "Paste Code" or "Connect URL" if you configure it now.
+                                                        Connect GitHub or GitLab in <a href="/dashboard/settings" className="underline underline-offset-2 hover:text-yellow-700">Settings</a>.
                                                     </p>
                                                 </div>
                                             </div>
                                         )}
                                         <div className="space-y-2">
-                                            <Label htmlFor="url">{t.createReview.repoUrl}</Label>
-                                            <Input
-                                                id="url"
+                                            <Label htmlFor="urls">{t.createReview.repoUrl}</Label>
+                                            <Textarea
+                                                id="urls"
                                                 placeholder={t.createReview.urlPlaceholder}
-                                                name="url"
+                                                name="urls"
                                                 disabled={!hasGitAccounts}
+                                                className="h-28 font-mono text-sm"
                                             />
                                             <p className="text-xs text-muted-foreground">
                                                 {t.createReview.urlHint}
@@ -441,6 +400,23 @@ export default function NewReviewPage() {
                                     </div>
                                 )}
 
+                                {/* Custom Review Rules */}
+                                <div className="space-y-2 pt-2 border-t">
+                                    <Label htmlFor="customRules" className="flex items-center gap-2">
+                                        <Target className="h-4 w-4 text-orange-500" />
+                                        {t.createReview.customRules}
+                                    </Label>
+                                    <Textarea
+                                        id="customRules"
+                                        name="customRules"
+                                        placeholder={t.createReview.customRulesPlaceholder}
+                                        className="h-20 text-sm"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        {t.createReview.customRulesDesc}
+                                    </p>
+                                </div>
+
                                 <Button type="submit" disabled={isLoading} className="w-full">
                                     {isLoading ? (
                                         <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t.createReview.scanning}</>
@@ -451,60 +427,6 @@ export default function NewReviewPage() {
                             </form>
                         </CardContent>
                     </Card>
-
-                    {/* Pattern Scan Results */}
-                    {patternResults !== null && (
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <CardTitle className="text-lg">
-                                        {t.createReview.patternResults}
-                                    </CardTitle>
-                                    {reviewId && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => router.push(`/dashboard/reviews/${reviewId}`)}
-                                        >
-                                            {t.createReview.viewReport}
-                                        </Button>
-                                    )}
-                                </div>
-                                <CardDescription>
-                                    {patternResults.length === 0
-                                        ? t.createReview.noIssues
-                                        : t.createReview.foundIssues(patternResults.length)
-                                    }
-                                </CardDescription>
-                            </CardHeader>
-                            {patternResults.length > 0 && (
-                                <CardContent>
-                                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                                        {patternResults.map((match, i) => (
-                                            <div
-                                                key={i}
-                                                className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${match.severity === "error" ? "border-red-500/30 bg-red-500/5" :
-                                                    match.severity === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
-                                                        "border-blue-500/30 bg-blue-500/5"
-                                                    }`}
-                                            >
-                                                {severityIcon(match.severity)}
-                                                <div className="flex-1 space-y-1">
-                                                    <p className="font-medium">{match.message}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Line {match.line} · Rule: {match.rule}
-                                                    </p>
-                                                    <code className="text-xs bg-muted px-2 py-1 rounded block mt-1">
-                                                        {match.snippet}
-                                                    </code>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            )}
-                        </Card>
-                    )}
                 </div>
 
                 {/* Sidebar: Context Documents */}

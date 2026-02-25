@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Parse URL
-        const parsed = GitLabService.parseMrUrl(url);
+        const parsed = GitLabService.parseMrUrl(url, customBaseUrl);
         if (!parsed) {
             return NextResponse.json({ error: "Invalid GitLab MR URL. Expected format: https://gitlab.com/group/project/-/merge_requests/123" }, { status: 400 });
         }

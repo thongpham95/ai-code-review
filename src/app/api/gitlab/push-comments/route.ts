@@ -14,10 +14,11 @@ interface CommentPayload {
 
 export async function POST(req: NextRequest) {
     try {
-        const { reviewId, mrUrl, token, comments } = await req.json() as {
+        const { reviewId, mrUrl, token, customBaseUrl, comments } = await req.json() as {
             reviewId: string;
             mrUrl: string;
             token: string;
+            customBaseUrl?: string;
             comments: CommentPayload[];
         };
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Parse GitLab MR URL
-        const parsed = GitLabService.parseMrUrl(mrUrl);
+        const parsed = GitLabService.parseMrUrl(mrUrl, customBaseUrl);
         if (!parsed) {
             return NextResponse.json(
                 { error: "Invalid GitLab MR URL. Expected format: https://gitlab.com/group/project/-/merge_requests/123" },
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
         }
 
         const { host, projectPath, mrIid } = parsed;
-        const service = new GitLabService(host, token);
+        const service = new GitLabService(customBaseUrl || host, token);
 
         const results: { success: boolean; comment: CommentPayload; error?: string; externalId?: string }[] = [];
 

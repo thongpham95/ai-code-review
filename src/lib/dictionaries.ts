@@ -62,6 +62,11 @@ export const dictionaries = {
             issues: (n: number) => `${n} issues`,
             searchPlaceholder: "Search reviews by title...",
             searchNoResults: "No reviews match your search.",
+            deleteSelected: "Delete Selected",
+            confirmDelete: (n: number) => `Delete ${n} review${n > 1 ? 's' : ''}? This cannot be undone.`,
+            deleted: (n: number) => `${n} review${n > 1 ? 's' : ''} deleted.`,
+            selectAll: "Select All",
+            deselectAll: "Deselect All",
         },
         // Create Review
         createReview: {
@@ -70,33 +75,28 @@ export const dictionaries = {
             reviewSourceDesc: "Provide code via URL or paste directly.",
             connectUrl: "Connect URL",
             pasteCode: "Paste Code",
-            repoUrl: "Repository / MR URL",
-            urlPlaceholder: "https://gitlab.example.com/group/project/-/merge_requests/123",
-            urlHint: "Supports GitLab MR URLs. The diff will be fetched automatically.",
+            repoUrl: "Repository / MR URLs",
+            urlPlaceholder: "Paste one or more GitLab MR / GitHub PR URLs (one per line)",
+            urlHint: "Supports GitLab MR and GitHub PR URLs. You can enter multiple URLs, one per line.",
             codeLabel: "Code to Review",
             codePlaceholder: "// Paste your code here...",
             startReview: "Start Review",
-            scanning: "Scanning...",
-            // AI Model Selection
-            aiConfig: "AI Model",
-            aiConfigDesc: "Choose Gemini model for this review.",
-            tierFast: "Fast",
-            tierFastDesc: "Gemini Flash — fast & free, great for routine reviews",
-            tierQuality: "Quality",
-            tierQualityDesc: "Gemini Pro — deeper analysis for complex code",
-            recommended: "Recommended",
-            free: "Free",
+            scanning: "Scanning & Analyzing...",
+            // AI Language
+            aiLang: "AI Language",
+            aiLangDesc: "Choose output language for the AI review.",
+            langEn: "English",
+            langVi: "Tiếng Việt",
             // Context Documents
             contextDocs: "Context Documents",
             contextDocsDesc: "Upload project docs to help AI understand business logic.",
             clickUpload: "Click to upload",
             supportedFormats: "PDF, Word, Excel, Text, Draw.io",
             addUrl: "Or add a Figma / URL reference",
-            // Pattern Results
-            patternResults: "Pattern Scan Results",
-            noIssues: "No issues detected by pattern scanner.",
-            foundIssues: (n: number) => `Found ${n} potential issues.`,
-            viewReport: "View Full Report",
+            // Custom Rules
+            customRules: "Custom Review Focus (Optional)",
+            customRulesPlaceholder: "E.g. Focus on security issues, check React best practices, review SQL injection risks...",
+            customRulesDesc: "Tell AI what to focus on. Leave empty for a general review.",
         },
         // Review Detail
         reviewDetail: {
@@ -105,8 +105,6 @@ export const dictionaries = {
             issues: "Issues",
             aiReview: "AI Review",
             changedFiles: (n: number) => `Changed Files (${n})`,
-            patternScan: "Pattern Scan Issues",
-            noIssuesFound: "No issues found by the pattern scanner.",
             aiNotStarted: "AI Review Not Started",
             aiNotStartedDesc: 'Click "Run AI Review" button to start AI-powered code analysis.',
             aiAnalyzing: "AI is analyzing your code...",
@@ -114,6 +112,13 @@ export const dictionaries = {
             completed: "Completed",
             failed: "Failed",
             pending: "Pending",
+            problematicFiles: "Files with Issues",
+            problematicFilesDesc: "Click to jump to the file",
+            noProblems: "All files look good!",
+            aiIssues: (n: number) => `${n} issue${n > 1 ? 's' : ''}`,
+            copyFix: "Copy Fix",
+            copied: "Copied!",
+            noSummary: "AI summary will appear after review",
         },
         // Settings
         settings: {
@@ -186,6 +191,11 @@ export const dictionaries = {
             issues: (n: number) => `${n} vấn đề`,
             searchPlaceholder: "Tìm kiếm review theo tiêu đề...",
             searchNoResults: "Không có review nào phù hợp.",
+            deleteSelected: "Xoá đã chọn",
+            confirmDelete: (n: number) => `Xoá ${n} review? Hành động không thể hoàn tác.`,
+            deleted: (n: number) => `Đã xoá ${n} review.`,
+            selectAll: "Chọn tất cả",
+            deselectAll: "Bỏ chọn tất cả",
         },
         // Tạo Review
         createReview: {
@@ -195,32 +205,27 @@ export const dictionaries = {
             connectUrl: "Kết nối URL",
             pasteCode: "Dán Code",
             repoUrl: "URL Repository / MR",
-            urlPlaceholder: "https://gitlab.example.com/group/project/-/merge_requests/123",
-            urlHint: "Hỗ trợ GitLab MR URL. Diff sẽ được tải tự động.",
+            urlPlaceholder: "Dán một hoặc nhiều URLs GitLab MR / GitHub PR (mỗi dòng một URL)",
+            urlHint: "Hỗ trợ GitLab MR và GitHub PR URL. Bạn có thể nhập nhiều URLs, mỗi dòng một URL.",
             codeLabel: "Code cần Review",
             codePlaceholder: "// Dán code của bạn tại đây...",
             startReview: "Bắt đầu Review",
-            scanning: "Đang quét...",
-            // Chọn Model AI
-            aiConfig: "Model AI",
-            aiConfigDesc: "Chọn model Gemini cho review này.",
-            tierFast: "Nhanh",
-            tierFastDesc: "Gemini Flash — nhanh & miễn phí, phù hợp review hàng ngày",
-            tierQuality: "Chất lượng",
-            tierQualityDesc: "Gemini Pro — phân tích sâu cho code phức tạp",
-            recommended: "Đề xuất",
-            free: "Miễn phí",
+            scanning: "Đang quét & phân tích...",
+            // Ngôn ngữ AI
+            aiLang: "Ngôn ngữ AI",
+            aiLangDesc: "Chọn ngôn ngữ đầu ra cho AI review.",
+            langEn: "English",
+            langVi: "Tiếng Việt",
             // Tài liệu Context
             contextDocs: "Tài liệu tham khảo",
             contextDocsDesc: "Upload tài liệu dự án để AI hiểu nghiệp vụ.",
             clickUpload: "Nhấn để tải lên",
             supportedFormats: "PDF, Word, Excel, Text, Draw.io",
             addUrl: "Hoặc thêm Figma / URL tham khảo",
-            // Kết quả quét pattern
-            patternResults: "Kết quả quét Pattern",
-            noIssues: "Không phát hiện lỗi nào từ pattern scanner.",
-            foundIssues: (n: number) => `Tìm thấy ${n} vấn đề tiềm ẩn.`,
-            viewReport: "Xem báo cáo đầy đủ",
+            // Luật review tuỳ chỉnh
+            customRules: "Trọng tâm Review (Tuỳ chọn)",
+            customRulesPlaceholder: "VD: Tập trung tìm lỗi bảo mật, kiểm tra chuẩn code React, review rủi ro SQL injection...",
+            customRulesDesc: "Hướng dẫn AI tập trung review vào lĩnh vực cụ thể. Để trống nếu muốn review tổng quát.",
         },
         // Chi tiết Review
         reviewDetail: {
@@ -229,8 +234,6 @@ export const dictionaries = {
             issues: "Vấn đề",
             aiReview: "AI Review",
             changedFiles: (n: number) => `Files thay đổi (${n})`,
-            patternScan: "Pattern Scan",
-            noIssuesFound: "Pattern scanner không phát hiện lỗi nào.",
             aiNotStarted: "Chưa chạy AI Review",
             aiNotStartedDesc: 'Nhấn "Chạy AI Review" để bắt đầu phân tích code bằng AI.',
             aiAnalyzing: "AI đang phân tích code của bạn...",
@@ -238,6 +241,13 @@ export const dictionaries = {
             completed: "Hoàn thành",
             failed: "Thất bại",
             pending: "Đang chờ",
+            problematicFiles: "Files có vấn đề",
+            problematicFilesDesc: "Nhấn để nhảy đến file",
+            noProblems: "Tất cả các file đều ổn!",
+            aiIssues: (n: number) => `${n} vấn đề`,
+            copyFix: "Copy Fix",
+            copied: "Đã copy!",
+            noSummary: "Tóm tắt AI sẽ hiển thị sau khi review",
         },
         // Cài đặt
         settings: {
@@ -272,23 +282,26 @@ export interface Dictionary {
         groupNone: string; groupDate: string; groupToday: string; groupYesterday: string;
         groupThisWeek: string; groupOlder: string; issues: (n: number) => string;
         searchPlaceholder: string; searchNoResults: string;
+        deleteSelected: string; confirmDelete: (n: number) => string;
+        deleted: (n: number) => string; selectAll: string; deselectAll: string;
     };
     createReview: {
         title: string; reviewSource: string; reviewSourceDesc: string; connectUrl: string;
         pasteCode: string; repoUrl: string; urlPlaceholder: string; urlHint: string;
         codeLabel: string; codePlaceholder: string; startReview: string; scanning: string;
-        aiConfig: string; aiConfigDesc: string; tierFast: string; tierFastDesc: string;
-        tierQuality: string; tierQualityDesc: string;
-        recommended: string; free: string; contextDocs: string; contextDocsDesc: string;
+        aiLang: string; aiLangDesc: string; langEn: string; langVi: string;
+        contextDocs: string; contextDocsDesc: string;
         clickUpload: string; supportedFormats: string; addUrl: string;
-        patternResults: string; noIssues: string; foundIssues: (n: number) => string;
-        viewReport: string;
+        customRules: string; customRulesPlaceholder: string; customRulesDesc: string;
     };
     reviewDetail: {
         runAiReview: string; codeFiles: string; issues: string; aiReview: string;
-        changedFiles: (n: number) => string; patternScan: string; noIssuesFound: string;
+        changedFiles: (n: number) => string;
         aiNotStarted: string; aiNotStartedDesc: string; aiAnalyzing: string;
         exportPdf: string; completed: string; failed: string; pending: string;
+        problematicFiles: string; problematicFilesDesc: string; noProblems: string;
+        aiIssues: (n: number) => string; copyFix: string; copied: string;
+        noSummary: string;
     };
     settings: {
         title: string; subtitle: string; aiConfig: string; aiConfigDesc: string;

@@ -8,11 +8,10 @@ import {
     SelectContent,
     SelectItem,
     SelectTrigger,
-    SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, AlertTriangle, AlertCircle, Info, Loader2, Bot, Play, FileCode, FileText, CheckCircle2, Languages, Sparkles, Download, PanelLeftClose, PanelLeft, Copy, Check, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Loader2, Bot, Play, FileCode, FileText, CheckCircle2, Sparkles, Download, PanelLeftClose, PanelLeft, Copy, Check, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import { useReactToPrint } from 'react-to-print';
@@ -20,15 +19,6 @@ import { useLanguage } from '@/contexts/language-context';
 import { InlineComment } from '@/components/review/inline-comment';
 import { PushCommentsDialog } from '@/components/review/push-comments-dialog';
 import { parseAIReview, getFileComment, type ParsedAIReview, type AIFileComment } from '@/lib/parse-ai-review';
-
-interface PatternResult {
-    line: number
-    message: string
-    severity: "error" | "warning" | "info"
-    rule: string
-    snippet: string
-    file?: string
-}
 
 interface ReviewFile {
     name: string
@@ -45,13 +35,15 @@ interface ReviewData {
     code?: string
     files?: ReviewFile[]
     createdAt: string
-    patternResults?: PatternResult[]
     aiAnalysis?: string
+    aiModel?: string
     contextDocuments?: { name: string; content: string }[]
+    customRules?: string
 }
 
 export default function ReviewDetailsPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const id = params?.id as string;
     const [review, setReview] = useState<ReviewData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -76,18 +68,23 @@ export default function ReviewDetailsPage() {
         documentTitle: review?.title ? `AI-Review-${review.title}` : 'AI-Code-Review-Report',
     });
 
-    // Load default AI config on mount
+    // Load default AI lang + handle autoReview from query
     useEffect(() => {
-        try {
-            const saved = localStorage.getItem("ai-config");
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.language) {
-                    setReviewLang(parsed.language);
+        const langParam = searchParams?.get('lang');
+        if (langParam === 'vi' || langParam === 'en') {
+            setReviewLang(langParam);
+        } else {
+            try {
+                const saved = localStorage.getItem("ai-config");
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.language) {
+                        setReviewLang(parsed.language);
+                    }
                 }
-            }
-        } catch { /* ignore */ }
-    }, []);
+            } catch { /* ignore */ }
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         async function fetchReview() {
@@ -103,7 +100,6 @@ export default function ReviewDetailsPage() {
                         if (parsed.qualityScore) setQualityScore(parsed.qualityScore);
                         if (parsed.quickSummary) setQuickSummary(parsed.quickSummary);
                     }
-                    // Expand all files by default
                     if (data.review.files) {
                         setExpandedFiles(new Set(data.review.files.map((f: ReviewFile) => f.name)));
                     }
@@ -118,6 +114,16 @@ export default function ReviewDetailsPage() {
         }
         if (id) fetchReview();
     }, [id]);
+
+    // Auto-trigger AI review if redirected from 1-click flow
+    const autoReviewTriggered = useRef(false);
+    useEffect(() => {
+        if (searchParams?.get('autoReview') === 'true' && review && !autoReviewTriggered.current && !aiResult && !aiLoading) {
+            autoReviewTriggered.current = true;
+            runAiAnalysis();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [review, searchParams]);
 
     function getCodeForAnalysis(): string | null {
         if (review?.code?.trim()) return review.code;
@@ -147,15 +153,6 @@ export default function ReviewDetailsPage() {
             return;
         }
 
-        const config: Record<string, string> = { model: "gemini-2.5-flash" };
-        try {
-            const saved = localStorage.getItem("ai-config");
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.model) config.model = parsed.model;
-            }
-        } catch { /* use defaults */ }
-
         setAiLoading(true);
         setAiResult("");
         setQuickSummary(null);
@@ -168,10 +165,11 @@ export default function ReviewDetailsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     code: codeToAnalyze,
-                    config,
+                    config: { model: "gemini-2.5-flash" },
                     reviewId: review?.id,
                     contextDocuments: review?.contextDocuments || [],
                     language: reviewLang,
+                    customRules: review?.customRules || "",
                 }),
             });
 
@@ -210,7 +208,7 @@ export default function ReviewDetailsPage() {
             const parsed = parseAIReview(accumulated);
             setParsedAIReview(parsed);
 
-            // Save AI analysis to database for persistence
+            // Save AI analysis + quickSummary to database
             if (review?.id && accumulated) {
                 try {
                     await fetch(`/api/reviews/${review.id}`, {
@@ -218,6 +216,7 @@ export default function ReviewDetailsPage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             aiAnalysis: accumulated,
+                            quickSummary: finalSummary || "",
                             status: "completed",
                             completedAt: new Date().toISOString(),
                         }),
@@ -235,9 +234,10 @@ export default function ReviewDetailsPage() {
         }
     }
 
-    const issueCount = review?.patternResults?.length || 0;
-    const errorCount = review?.patternResults?.filter(i => i.severity === "error").length || 0;
-    const warningCount = review?.patternResults?.filter(i => i.severity === "warning").length || 0;
+    // Problematic files: files with needs_changes status or issues
+    const problematicFiles = parsedAIReview?.fileComments.filter(
+        fc => fc.status === "needs_changes" || fc.issues.length > 0
+    ) || [];
 
     function toggleFile(fileName: string) {
         setExpandedFiles(prev => {
@@ -265,15 +265,6 @@ export default function ReviewDetailsPage() {
         setTimeout(() => setCopiedFile(null), 2000);
     }
 
-    function getFileIssues(fileName: string): PatternResult[] {
-        if (!review?.patternResults) return [];
-        return review.patternResults.filter(issue =>
-            issue.file === fileName ||
-            fileName.endsWith(issue.file || '') ||
-            (issue.file && fileName.includes(issue.file))
-        );
-    }
-
     function getFileAIComment(fileName: string): AIFileComment | null {
         if (!parsedAIReview) return null;
         return getFileComment(parsedAIReview, fileName);
@@ -287,11 +278,9 @@ export default function ReviewDetailsPage() {
 
     function handleCommentUpdate(fileName: string, updatedComment: AIFileComment) {
         if (!parsedAIReview) return;
-
         const newFileComments = parsedAIReview.fileComments.map(fc =>
             fc.fileName === fileName ? updatedComment : fc
         );
-
         setParsedAIReview({
             ...parsedAIReview,
             fileComments: newFileComments
@@ -394,7 +383,7 @@ export default function ReviewDetailsPage() {
             </div>
 
             {/* Summary Bar */}
-            {(quickSummary || qualityScore || issueCount > 0 || aiLoading) && (
+            {(quickSummary || qualityScore || aiLoading) && (
                 <div className="px-3 py-1.5 border-b bg-muted/30 flex items-center gap-4 text-[11px] shrink-0 overflow-x-auto">
                     {aiLoading && (
                         <div className="flex items-center gap-1.5 text-purple-600">
@@ -406,20 +395,6 @@ export default function ReviewDetailsPage() {
                         <div className="flex items-center gap-1">
                             <span className="text-muted-foreground">Score:</span>
                             <span className={`font-bold ${getScoreColor(qualityScore)}`}>{qualityScore}/10</span>
-                        </div>
-                    )}
-                    {issueCount > 0 && (
-                        <div className="flex items-center gap-2">
-                            {errorCount > 0 && (
-                                <span className="flex items-center gap-1 text-red-500">
-                                    <AlertCircle className="h-3 w-3" />{errorCount}
-                                </span>
-                            )}
-                            {warningCount > 0 && (
-                                <span className="flex items-center gap-1 text-yellow-500">
-                                    <AlertTriangle className="h-3 w-3" />{warningCount}
-                                </span>
-                            )}
                         </div>
                     )}
                     {quickSummary && (
@@ -434,6 +409,43 @@ export default function ReviewDetailsPage() {
                             {parsedAIReview.fileComments.length} files reviewed
                         </Badge>
                     )}
+                </div>
+            )}
+
+            {/* Problematic Files Quick Navigation */}
+            {!aiLoading && parsedAIReview && problematicFiles.length > 0 && (
+                <div className="px-3 py-2 border-b bg-gradient-to-r from-amber-500/5 to-red-500/5 shrink-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{t.reviewDetail.problematicFiles}</span>
+                        <span className="text-[10px] text-muted-foreground">— {t.reviewDetail.problematicFilesDesc}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {problematicFiles.map((fc) => (
+                            <button
+                                key={fc.fileName}
+                                onClick={() => {
+                                    if (!expandedFiles.has(fc.fileName)) toggleFile(fc.fileName);
+                                    document.getElementById(`file-${fc.fileName}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }}
+                                className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-xs"
+                            >
+                                <FileCode className="h-3 w-3 text-amber-600" />
+                                <span className="font-mono text-[11px] truncate max-w-[200px]">{fc.fileName.split('/').pop()}</span>
+                                <Badge variant="outline" className="h-4 px-1 text-[9px] bg-red-500/10 text-red-600 border-red-500/30">
+                                    {t.reviewDetail.aiIssues(fc.issues.length)}
+                                </Badge>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* "All good" banner */}
+            {!aiLoading && parsedAIReview && parsedAIReview.fileComments.length > 0 && problematicFiles.length === 0 && (
+                <div className="px-3 py-2 border-b bg-green-500/5 shrink-0 flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                    <span className="text-xs font-medium text-green-600">{t.reviewDetail.noProblems}</span>
                 </div>
             )}
 
@@ -452,7 +464,6 @@ export default function ReviewDetailsPage() {
                         <div className="flex-1 overflow-y-auto">
                             {review.files.map((file) => {
                                 const fileComment = getFileAIComment(file.name);
-                                const issues = getFileIssues(file.name);
                                 const isExpanded = expandedFiles.has(file.name);
                                 return (
                                     <button
@@ -470,9 +481,6 @@ export default function ReviewDetailsPage() {
                                         )}
                                         {fileComment?.issues && fileComment.issues.length > 0 && (
                                             <Badge variant="outline" className="h-4 px-1 text-[9px]">{fileComment.issues.length}</Badge>
-                                        )}
-                                        {issues.length > 0 && (
-                                            <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />
                                         )}
                                     </button>
                                 );
@@ -535,17 +543,15 @@ export default function ReviewDetailsPage() {
                             </div>
                         )}
 
-                        {/* Files List - GitHub/GitLab Style */}
+                        {/* Files List */}
                         <div className="divide-y">
                             {review.code ? (
-                                // Single pasted code
                                 <FileBlock
                                     fileName="pasted-code"
                                     content={review.code}
                                     isExpanded={true}
                                     onToggle={() => { }}
                                     aiComment={parsedAIReview?.fileComments?.[0] || null}
-                                    issues={review.patternResults || []}
                                     onCopy={copyToClipboard}
                                     isCopied={copiedFile === "pasted-code"}
                                 />
@@ -558,7 +564,6 @@ export default function ReviewDetailsPage() {
                                         isExpanded={expandedFiles.has(file.name)}
                                         onToggle={() => toggleFile(file.name)}
                                         aiComment={getFileAIComment(file.name)}
-                                        issues={getFileIssues(file.name)}
                                         onCopy={copyToClipboard}
                                         isCopied={copiedFile === file.name}
                                         onCommentUpdate={handleCommentUpdate}
@@ -598,21 +603,6 @@ export default function ReviewDetailsPage() {
                             {review.source} · {new Date(review.createdAt).toLocaleDateString()}
                         </p>
                     </div>
-                    {review.patternResults && review.patternResults.length > 0 && (
-                        <div className="mb-4">
-                            <h2 className="text-base font-semibold text-gray-800 mb-2 pb-1 border-b">{t.reviewDetail.patternScan}</h2>
-                            <div className="space-y-1">
-                                {review.patternResults.map((issue, i) => (
-                                    <div key={i} className="text-sm border-l-4 pl-2 py-0.5" style={{
-                                        borderColor: issue.severity === 'error' ? '#ef4444' : issue.severity === 'warning' ? '#eab308' : '#3b82f6'
-                                    }}>
-                                        <p className="font-medium">{issue.message}</p>
-                                        <p className="text-xs text-gray-500">Line {issue.line} · {issue.rule}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                     {aiResult && (
                         <div className="mb-4">
                             <h2 className="text-base font-semibold text-gray-800 mb-2 pb-1 border-b">{t.reviewDetail.aiReview}</h2>
@@ -648,17 +638,15 @@ interface FileBlockProps {
     isExpanded: boolean
     onToggle: () => void
     aiComment: AIFileComment | null
-    issues: PatternResult[]
     onCopy: (content: string, fileName: string) => void
     isCopied: boolean
     onCommentUpdate?: (fileName: string, updatedComment: AIFileComment) => void
 }
 
-function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues, onCopy, isCopied, onCommentUpdate }: FileBlockProps) {
+function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, onCopy, isCopied, onCommentUpdate }: FileBlockProps) {
     const lines = content.split('\n');
     const lineCount = lines.length;
     const hasAIFeedback = aiComment && (aiComment.status !== "unknown" || aiComment.issues.length > 0);
-    const hasIssues = issues.length > 0;
 
     return (
         <div id={`file-${fileName}`} className="bg-background">
@@ -685,11 +673,6 @@ function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues,
                     {aiComment?.issues && aiComment.issues.length > 0 && (
                         <Badge variant="outline" className="h-4 px-1 text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/30">
                             <Bot className="h-2.5 w-2.5 mr-0.5" />{aiComment.issues.length}
-                        </Badge>
-                    )}
-                    {hasIssues && (
-                        <Badge variant="outline" className="h-4 px-1 text-[9px] bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
-                            <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />{issues.length}
                         </Badge>
                     )}
                     <span className="text-[10px] text-muted-foreground">{lineCount} lines</span>
@@ -752,31 +735,6 @@ function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, issues,
                                     expanded={true}
                                     onSave={(updated) => onCommentUpdate && onCommentUpdate(fileName, updated)}
                                 />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Pattern Scan Issues */}
-                    {hasIssues && (
-                        <div className="px-2 py-1.5 bg-yellow-500/5 border-t border-yellow-500/20">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                                <span className="text-[10px] font-medium text-yellow-600">Pattern Scan ({issues.length})</span>
-                            </div>
-                            <div className="space-y-1">
-                                {issues.map((issue, i) => (
-                                    <div key={i} className={`text-[11px] rounded px-1.5 py-1 flex items-start gap-1.5 ${issue.severity === "error" ? "bg-red-500/10 text-red-600" :
-                                        issue.severity === "warning" ? "bg-yellow-500/10 text-yellow-600" :
-                                            "bg-blue-500/10 text-blue-600"
-                                        }`}>
-                                        {issue.severity === "error" ? <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" /> :
-                                            issue.severity === "warning" ? <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> :
-                                                <Info className="h-3 w-3 shrink-0 mt-0.5" />}
-                                        <div>
-                                            <span className="font-medium">L{issue.line}:</span> {issue.message}
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
                         </div>
                     )}

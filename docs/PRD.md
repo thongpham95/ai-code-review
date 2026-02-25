@@ -21,8 +21,12 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 - Khó tìm lại review cũ khi cần tham khảo.
 
 ### 1.3 Giải pháp
-- Review code bằng **Google Gemini** (miễn phí) — 2 chế độ: Nhanh và Chất lượng.
-- Hỗ trợ hoàn toàn Tiếng Việt và Tiếng Anh.
+- Review code bằng **Google Gemini Flash** (chế độ duy nhất được sử dụng cho cả tốc độ và chất lượng để tối giản hệ thống).
+- Hỗ trợ hoàn toàn Tiếng Việt và Tiếng Anh (Chuyển đổi ngôn ngữ trực tiếp trong màn hình Review Detail).
+- **Tương tác 2 chiều**: Push comment lên GitHub/GitLab, chỉnh sửa comment trước khi push.
+- Xuất báo cáo review ra PDF.
+- Giao diện trực quan với chế độ xem Lưới/Danh sách.
+- **Tối ưu trải nghiệm**: Khởi tạo AI Review ngay lập tức (1-click review) và hỗ trợ xử lý nhiều MR/PR URL cùng lúc.
 - **Tương tác 2 chiều**: Push comment lên GitHub/GitLab, chỉnh sửa comment trước khi push.
 - Xuất báo cáo review ra PDF.
 - Giao diện trực quan với chế độ xem Lưới/Danh sách.
@@ -39,13 +43,12 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 ### 2.2 Chân dung người dùng (Personas)
 
 **Persona 1: Minh - Senior Dev**
-- Cần review nhanh, chính xác.
-- Dùng "Chất lượng" (Gemini Pro) cho code phức tạp.
+- Cần review nhanh, chính xác cho code phức tạp.
 - Chỉnh sửa lại các comment của AI cho phù hợp ngữ cảnh dự án rồi mới push.
 
 **Persona 2: Lan - Junior Dev**
 - Cần giải thích chi tiết, dễ hiểu bằng tiếng Việt.
-- Dùng "Nhanh" (Gemini Flash) để review hàng ngày.
+- Sử dụng tính năng 1-click để tự động chạy review code ngay khi tạo review mới.
 
 ---
 
@@ -60,18 +63,18 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 ### 3.2 Code Review Core (P0)
 | ID | Chức năng | Mô tả | Trạng thái |
 |----|-----------|-------|------------|
-| REV-01 | Webhook/URL/Paste | Nguồn code linh hoạt | ✅ Hoàn thành |
-| REV-02 | AI Analysis | Phân tích code tìm lỗi, security, performance | ✅ Hoàn thành |
-| REV-03 | Model Selection | 2 chế độ Gemini: Nhanh (Flash) / Chất lượng (Pro) | ✅ Hoàn thành |
-| REV-04 | **[MỚI] Tìm kiếm Review** | Tìm kiếm review theo title, từ khoá | ✅ Hoàn thành |
+| REV-01 | Webhook/URL/Paste | Nguồn code linh hoạt, hỗ trợ nhập **nhiều MR URLs cùng lúc** | ✅ Hoàn thành / 🟡 Nâng cấp |
+| REV-02 | AI Analysis | Phân tích code tìm lỗi, security, performance (Chỉ dùng **Gemini Flash**) | ✅ Hoàn thành |
+| REV-03 | **[MỚI] 1-Click Review** | Chọn ngôn ngữ và tự động chạy AI Review ngay khi Submit tạo review | 🟡 Nâng cấp |
+| REV-04 | **[MỚI] Tìm kiếm và Quản lý** | Tìm kiếm review theo title, từ khoá. Hỗ trợ **xoá hàng loạt (Bulk Delete)** | ✅ Hoàn thành / 🟡 Nâng cấp |
 | REV-05 | **[MỚI] Git Integration** | Push comment lên PR/MR | ✅ Hoàn thành |
 
 ### 3.3 Giao diện & Trải nghiệm (P1)
 | ID | Chức năng | Mô tả | Trạng thái |
 |----|-----------|-------|------------|
-| UI-01 | Đa ngôn ngữ | Chuyển đổi Tiếng Anh / Tiếng Việt | ✅ Hoàn thành |
+| UI-01 | Đa ngôn ngữ | Chuyển ngôn ngữ AI review **trực tiếp trong màn hình Review Detail** | ✅ Hoàn thành / 🟡 Nâng cấp |
 | UI-02 | List/Grid View | Tùy chọn hiển thị danh sách Review | ✅ Hoàn thành |
-| UI-03 | Smart Sorting | Sắp xếp, nhóm review theo ngày, số lỗi | ✅ Hoàn thành |
+| UI-03 | Smart Sorting | Sắp xếp, nhóm review. Chọn và **xoá hàng loạt** review | ✅ Hoàn thành / 🟡 Nâng cấp |
 | UI-04 | **Manual Edit** | Chỉnh sửa/Từ chối AI comment | ✅ Hoàn thành |
 
 ### 3.4 Báo cáo & Export (P1)
@@ -124,7 +127,7 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 ### 5.1 Tech Stack
 - **Frontend**: Next.js 16, React 19, Tailwind CSS 4, `react-to-print`.
 - **Backend**: Next.js API Routes, `better-sqlite3`.
-- **AI**: Vercel AI SDK — **chỉ Google Gemini** (Flash + Pro).
+- **AI**: Vercel AI SDK — **Chỉ dùng Google Gemini Flash**.
 
 ### 5.2 Quản lý Source Code
 - **Branching Strategy**: Feature branching (`feature/ten-tinh-nang`).
@@ -135,5 +138,4 @@ AI Code Review là ứng dụng web giúp lập trình viên review code tự đ
 - **Glossary**:
     - **RAG**: Retrieval-Augmented Generation (AI học từ tài liệu).
     - **Diff**: Sự khác biệt giữa 2 phiên bản code.
-    - **Gemini Flash**: Model nhanh, miễn phí, phù hợp review hàng ngày.
-    - **Gemini Pro**: Model mạnh hơn, phù hợp code phức tạp.
+    - **Gemini Flash**: Model tĩnh gọn, tối ưu tốc độ và chất lượng cho mọi bài toán review.

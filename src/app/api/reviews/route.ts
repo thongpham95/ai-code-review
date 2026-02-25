@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listReviews, searchReviews, getStats } from "@/lib/review-store";
+import { listReviews, searchReviews, getStats, deleteReviews } from "@/lib/review-store";
 
 export async function GET(request: NextRequest) {
     try {
@@ -12,5 +12,19 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error("Reviews API error:", error);
         return NextResponse.json({ error: "Failed to fetch reviews" }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: NextRequest) {
+    try {
+        const { ids } = await request.json();
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return NextResponse.json({ error: "Missing 'ids' array" }, { status: 400 });
+        }
+        const deleted = deleteReviews(ids);
+        return NextResponse.json({ success: true, deleted });
+    } catch (error) {
+        console.error("Delete reviews error:", error);
+        return NextResponse.json({ error: "Failed to delete reviews" }, { status: 500 });
     }
 }

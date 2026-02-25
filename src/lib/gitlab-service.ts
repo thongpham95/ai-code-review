@@ -23,20 +23,47 @@ export class GitLabService {
     private baseUrl: string;
     private token?: string;
 
-    static parseMrUrl(url: string): { host: string, projectPath: string, mrIid: number } | null {
+    static parseMrUrl(url: string, customBaseUrl?: string): { host: string, projectPath: string, mrIid: number } | null {
         try {
             const u = new URL(url);
             const pathParts = u.pathname.split("/-/merge_requests/");
 
             if (pathParts.length !== 2) return null;
 
-            const projectPath = pathParts[0].substring(1); // Remove leading slash
+            let projectPath = pathParts[0].substring(1); // Remove leading slash
+
+            if (customBaseUrl) {
+                try {
+                    const cb = new URL(customBaseUrl);
+                    const basePath = cb.pathname.replace(/\/$/, ""); // e.g., /gitlab
+                    if (basePath && basePath !== "/" && u.pathname.startsWith(basePath)) {
+                        projectPath = pathParts[0].substring(basePath.length);
+                        // Clean up leading slash again if it exists
+                        if (projectPath.startsWith('/')) {
+                            projectPath = projectPath.substring(1);
+                        }
+                    }
+                } catch {
+                    // Ignore invalid customBaseUrl
+                }
+            }
+
             const mrIid = parseInt(pathParts[1], 10);
 
             if (isNaN(mrIid)) return null;
 
+            let host = u.origin;
+            if (customBaseUrl) {
+                try {
+                    const cb = new URL(customBaseUrl);
+                    host = `${cb.origin}${cb.pathname.replace(/\/$/, "")}`;
+                } catch {
+                    // Ignore
+                }
+            }
+
             return {
-                host: u.origin,
+                host,
                 projectPath,
                 mrIid
             };

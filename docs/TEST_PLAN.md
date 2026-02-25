@@ -108,17 +108,17 @@
 |------|--------|
 | **Mô tả** | Tạo review từ code paste |
 | **Precondition** | User đã đăng nhập |
-| **Steps** | 1. Vào /dashboard/reviews/new<br>2. Click tab "Paste Code"<br>3. Paste code vào textarea<br>4. Click "Start Review" |
-| **Expected** | - Review được tạo<br>- Pattern scan results hiện<br>- Có thể click "View Full Report" |
+| **Steps** | 1. Vào /dashboard/reviews/new<br>2. Click tab "Paste Code"<br>3. Paste code vào textarea<br>4. Chọn ngôn ngữ AI<br>5. Click "Start Review" |
+| **Expected** | - Review được tạo<br>- Pattern scan results hiện kèm theo AI tự động bắt đầu stream review kết quả |
 | **Priority** | P0 |
 
 #### TC-REV-02: Create Review from GitLab MR
 | Item | Detail |
 |------|--------|
-| **Mô tả** | Tạo review từ GitLab MR URL |
+| **Mô tả** | Tạo review từ 1 hoặc nhiều GitLab MR URLs |
 | **Precondition** | User đã đăng nhập, có GitLab PAT trong session |
-| **Steps** | 1. Vào /dashboard/reviews/new<br>2. Click tab "Connect URL"<br>3. Nhập GitLab MR URL<br>4. Click "Start Review" |
-| **Expected** | - MR diff được fetch<br>- Review được tạo với tất cả files từ MR<br>- Title = MR title |
+| **Steps** | 1. Vào /dashboard/reviews/new<br>2. Click tab "Connect URL"<br>3. Nhập một hoặc nhiều GitLab MR URLs<br>4. Chọn ngôn ngữ AI<br>5. Click "Start Review" |
+| **Expected** | - Tất cả MR diff được fetch gộp chung<br>- Review được tạo và tự động chạy AI stream ngay lập tức |
 | **Priority** | P0 |
 
 #### TC-REV-03: Create Review with Context Documents
@@ -145,8 +145,17 @@
 | **Mô tả** | Xem chi tiết review |
 | **Precondition** | Có review đã tạo |
 | **Steps** | 1. Click vào review card từ list |
-| **Expected** | - Hiện 3 tabs: Code & Files, Issues, AI Review<br>- Tab Code hiện code với syntax highlighting<br>- Tab Issues hiện pattern scan results |
+| **Expected** | - Hiện 3 tabs: Code & Files, Issues, AI Review<br>- Inline language switcher hiển thị tại view detail<br>- Có thể đổi ngôn ngữ và Re-run AI review |
 | **Priority** | P0 |
+
+#### TC-REV-06: Bulk Delete Reviews
+| Item | Detail |
+|------|--------|
+| **Mô tả** | Xóa nhiều reviews cùng lúc |
+| **Precondition** | Có ít nhất 2 reviews |
+| **Steps** | 1. Mở danh sách reviews<br>2. Tick chọn checkbox của 2 reviews<br>3. Click "Xoá đã chọn" |
+| **Expected** | Trạng thái table thay đổi, 2 reviews biến mất, hiển thị toast success |
+| **Priority** | P1 |
 
 ---
 
