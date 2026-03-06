@@ -4,10 +4,7 @@
 
 services:
   app:
-    image: ai-code-review:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${DH_USERNAME:-thongphm}/ai-codereview:latest
     ports:
       - "3000:3000"
     environment:
@@ -18,7 +15,8 @@ services:
       - AUTH_GITHUB_SECRET=${AUTH_GITHUB_SECRET:-}
       - AUTH_GITLAB_ID=${AUTH_GITLAB_ID:-}
       - AUTH_GITLAB_SECRET=${AUTH_GITLAB_SECRET:-}
-      # OpenAI
+      # AI Provider
+      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # Auth URL for NextAuth (required in production)
       - AUTH_URL=${AUTH_URL:-http://localhost:3000}
@@ -34,7 +32,7 @@ services:
           cpus: '0.25'
           memory: 256M
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/" ]
       interval: 30s
       timeout: 10s
       retries: 3
