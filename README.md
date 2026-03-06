@@ -1,7 +1,7 @@
 # AI Code Review
 
 [![Docker Image](https://img.shields.io/badge/Docker-thongphm%2Fai--codereview-blue)](https://hub.docker.com/r/thongphm/ai-codereview)
-[![Version](https://img.shields.io/badge/version-1.0.3-green)](https://github.com/thongpham95/ai-code-review/releases)
+[![Version](https://img.shields.io/badge/version-1.0.4-green)](https://github.com/thongpham95/ai-code-review/releases)
 
 Ứng dụng web review code tự động sử dụng AI (Google Gemini Flash), hỗ trợ tích hợp GitLab và GitHub.
 
@@ -153,7 +153,12 @@ Xem chi tiết tại folder [docs/](docs/):
 
 ## Changelog
 
-### v1.0.3 (Current)
+### v1.0.4 (Current)
+- Add GitLab permission check: Only users with merge access can push AI comments
+- Show permission status in Push Comments dialog (checking/allowed/denied)
+- Backend protection: 403 error if user lacks merge permission
+
+### v1.0.3
 - Fix GitLab push comments fallback when line not in diff
 - Comments now post as general notes with file/line context when line-specific fails
 

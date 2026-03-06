@@ -215,6 +215,27 @@ export class GitLabService {
             headSha: data.diff_refs?.head_sha,
         };
     }
+
+    /**
+     * Check if the authenticated user has merge permission for an MR
+     */
+    async getMergeRequestPermissions(projectPath: string, mrIid: number): Promise<GitLabMRPermissions> {
+        const encodedPath = encodeURIComponent(projectPath);
+        const url = `${this.baseUrl}/api/v4/projects/${encodedPath}/merge_requests/${mrIid}`;
+
+        const response = await fetch(url, {
+            headers: this.getHeaders(),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch MR: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return {
+            canMerge: data.user?.can_merge ?? false,
+        };
+    }
 }
 
 export interface GitLabNote {
@@ -237,4 +258,8 @@ export interface GitLabDiffRefs {
     baseSha: string;
     startSha: string;
     headSha: string;
+}
+
+export interface GitLabMRPermissions {
+    canMerge: boolean;
 }

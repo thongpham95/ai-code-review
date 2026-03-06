@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
+import fs from "fs";
 
 export interface Review {
     id: string;
@@ -22,9 +23,15 @@ export interface Review {
 }
 
 // SQLite persistent store - shared across all workers via file
-const DB_PATH = path.join(process.cwd(), "data", "reviews.db");
+const DATA_DIR = path.join(process.cwd(), "data");
+const DB_PATH = path.join(DATA_DIR, "reviews.db");
 
 function getDb(): Database.Database {
+    // Ensure data directory exists (for local dev - Docker has volume mount)
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
     const db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL"); // Better concurrent read performance
     db.pragma("busy_timeout = 5000");

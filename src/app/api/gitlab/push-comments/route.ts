@@ -49,6 +49,23 @@ export async function POST(req: NextRequest) {
 
         const results: { success: boolean; comment: CommentPayload; error?: string; externalId?: string }[] = [];
 
+        // Check user permissions first
+        try {
+            const permissions = await service.getMergeRequestPermissions(projectPath, mrIid);
+            if (!permissions.canMerge) {
+                return NextResponse.json(
+                    {
+                        error: "Permission denied: You don't have merge access to this MR. Only users with merge permission can push AI comments.",
+                        code: "INSUFFICIENT_PERMISSIONS"
+                    },
+                    { status: 403 }
+                );
+            }
+        } catch (e) {
+            console.warn("Could not check permissions, proceeding with push:", e);
+            // Continue anyway if permission check fails - the push will fail if user doesn't have access
+        }
+
         // Get diff refs for line-specific comments
         let diffRefs: { baseSha: string; startSha: string; headSha: string } | null = null;
         try {

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2, CheckCircle2, AlertCircle, GitBranch, ExternalLink, Key } from 'lucide-react'
+import { Loader2, CheckCircle2, GitBranch, ExternalLink, Key, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import type { AIIssue, AIFileComment } from '@/lib/parse-ai-review'
 
@@ -49,6 +49,9 @@ export function PushCommentsDialog({
     const [comments, setComments] = useState<SelectableComment[]>([])
     const [pushing, setPushing] = useState(false)
     const [pushed, setPushed] = useState<Set<string>>(new Set())
+    const [permissionChecking, setPermissionChecking] = useState(false)
+    const [canPush, setCanPush] = useState<boolean | null>(null)
+    const [permissionError, setPermissionError] = useState<string | null>(null)
 
     // Detect provider from URL
     useEffect(() => {
@@ -78,6 +81,57 @@ export function PushCommentsDialog({
 
         setComments(selectableComments)
     }, [fileComments])
+
+    // Check GitLab permission when we have URL + token
+    useEffect(() => {
+        // Only check for GitLab
+        if (provider !== 'gitlab' || !targetUrl || !token) {
+            setCanPush(null)
+            setPermissionError(null)
+            return
+        }
+
+        // Debounce the check
+        const timer = setTimeout(async () => {
+            setPermissionChecking(true)
+            setPermissionError(null)
+
+            try {
+                const response = await fetch('/api/gitlab/check-permission', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mrUrl: targetUrl,
+                        token,
+                        customBaseUrl: customBaseUrl || undefined,
+                    }),
+                })
+
+                const data = await response.json()
+
+                if (response.ok) {
+                    setCanPush(data.canMerge)
+                    if (!data.canMerge) {
+                        setPermissionError("You don't have merge access to this MR")
+                    }
+                } else {
+                    // On error, allow push attempt (backend will handle)
+                    setCanPush(null)
+                    if (data.error) {
+                        setPermissionError(data.error)
+                    }
+                }
+            } catch (error) {
+                console.error('Permission check failed:', error)
+                // On network error, allow push attempt
+                setCanPush(null)
+            } finally {
+                setPermissionChecking(false)
+            }
+        }, 500)
+
+        return () => clearTimeout(timer)
+    }, [provider, targetUrl, token, customBaseUrl])
 
     // Load token and URL from localStorage
     useEffect(() => {
@@ -311,6 +365,41 @@ export function PushCommentsDialog({
                         </div>
                     )}
 
+                    {/* GitLab Permission Status */}
+                    {provider === 'gitlab' && targetUrl && token && (
+                        <div className={`flex items-center gap-2 p-3 rounded-lg border ${
+                            permissionChecking
+                                ? 'bg-muted/50 border-muted'
+                                : canPush === true
+                                    ? 'bg-green-500/10 border-green-500/30'
+                                    : canPush === false
+                                        ? 'bg-amber-500/10 border-amber-500/30'
+                                        : 'bg-muted/30 border-muted'
+                        }`}>
+                            {permissionChecking ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    <span className="text-sm text-muted-foreground">Checking permissions...</span>
+                                </>
+                            ) : canPush === true ? (
+                                <>
+                                    <ShieldCheck className="h-4 w-4 text-green-600" />
+                                    <span className="text-sm text-green-600">You have merge access to this MR</span>
+                                </>
+                            ) : canPush === false ? (
+                                <>
+                                    <ShieldAlert className="h-4 w-4 text-amber-600" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-amber-600">Permission Required</p>
+                                        <p className="text-xs text-amber-600/80">
+                                            {permissionError || "You don't have merge access to this MR. Only users with merge permission can push comments."}
+                                        </p>
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
+                    )}
+
                     {/* Comments Selection */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -405,7 +494,7 @@ export function PushCommentsDialog({
                     </Button>
                     <Button
                         onClick={handlePush}
-                        disabled={pushing || selectedCount === 0 || !targetUrl || !token}
+                        disabled={pushing || selectedCount === 0 || !targetUrl || !token || permissionChecking || canPush === false}
                     >
                         {pushing ? (
                             <>
