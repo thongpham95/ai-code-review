@@ -1,7 +1,7 @@
 # AI Code Review
 
 [![Docker Image](https://img.shields.io/badge/Docker-thongphm%2Fai--codereview-blue)](https://hub.docker.com/r/thongphm/ai-codereview)
-[![Version](https://img.shields.io/badge/version-1.0.2-green)](https://github.com/thongpham95/ai-code-review/releases)
+[![Version](https://img.shields.io/badge/version-1.0.3-green)](https://github.com/thongpham95/ai-code-review/releases)
 
 Ứng dụng web review code tự động sử dụng AI (Google Gemini Flash), hỗ trợ tích hợp GitLab và GitHub.
 
@@ -153,7 +153,11 @@ Xem chi tiết tại folder [docs/](docs/):
 
 ## Changelog
 
-### v1.0.2 (Current)
+### v1.0.3 (Current)
+- Fix GitLab push comments fallback when line not in diff
+- Comments now post as general notes with file/line context when line-specific fails
+
+### v1.0.2
 - Fix GitLab self-hosted push comments (line_code calculation)
 - Fix AUTH_TRUST_HOST for production deployment
 - Fix SQLite database path for Docker volumes

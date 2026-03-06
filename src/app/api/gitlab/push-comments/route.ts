@@ -78,28 +78,42 @@ export async function POST(req: NextRequest) {
 
             try {
                 let externalId: string;
+                let usedFallback = false;
 
                 // Try to post as a discussion (preferred for code comments)
                 // If we have line info and diff refs, try to make it line-specific
                 if (comment.line && comment.fileName && diffRefs) {
-                    const discussion = await service.createMergeRequestDiscussion(
-                        projectPath,
-                        mrIid,
-                        body,
-                        {
-                            baseSha: diffRefs.baseSha,
-                            startSha: diffRefs.startSha,
-                            headSha: diffRefs.headSha,
-                            positionType: "text",
-                            newPath: comment.fileName,
-                            oldPath: comment.fileName,
-                            newLine: comment.line,
-                        }
-                    );
-                    externalId = discussion.id;
+                    try {
+                        const discussion = await service.createMergeRequestDiscussion(
+                            projectPath,
+                            mrIid,
+                            body,
+                            {
+                                baseSha: diffRefs.baseSha,
+                                startSha: diffRefs.startSha,
+                                headSha: diffRefs.headSha,
+                                positionType: "text",
+                                newPath: comment.fileName,
+                                oldPath: comment.fileName,
+                                newLine: comment.line,
+                            }
+                        );
+                        externalId = discussion.id;
+                    } catch (lineError) {
+                        // Fallback: If line-specific comment fails (e.g., line not in diff),
+                        // post as general note with file/line context
+                        console.warn(`Line-specific comment failed, falling back to general note:`, lineError);
+                        usedFallback = true;
+                        const fallbackBody = `**📍 ${comment.fileName}:${comment.line}**\n\n${body}`;
+                        const note = await service.addMergeRequestNote(projectPath, mrIid, fallbackBody);
+                        externalId = String(note.id);
+                    }
                 } else {
                     // Post as a general MR note
-                    const note = await service.addMergeRequestNote(projectPath, mrIid, body);
+                    const noteBody = comment.fileName
+                        ? `**📍 ${comment.fileName}${comment.line ? `:${comment.line}` : ''}**\n\n${body}`
+                        : body;
+                    const note = await service.addMergeRequestNote(projectPath, mrIid, noteBody);
                     externalId = String(note.id);
                 }
 
@@ -116,6 +130,7 @@ export async function POST(req: NextRequest) {
                     success: true,
                     comment,
                     externalId,
+                    ...(usedFallback && { fallback: true }),
                 });
             } catch (error) {
                 console.error("Failed to push comment:", error);
