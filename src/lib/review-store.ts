@@ -22,7 +22,7 @@ export interface Review {
 }
 
 // SQLite persistent store - shared across all workers via file
-const DB_PATH = path.join(process.cwd(), "reviews.db");
+const DB_PATH = path.join(process.cwd(), "data", "reviews.db");
 
 function getDb(): Database.Database {
     const db = new Database(DB_PATH);
