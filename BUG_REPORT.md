@@ -1,126 +1,152 @@
 # Bug Report
 
 ## Status
-FIX APPLIED - PENDING VERIFICATION
+FIX IMPLEMENTED - PENDING VERIFICATION
 
 ## Bug Title
-GitHub PR URLs incorrectly routed to GitLab API; Missing Git account management UI
+Auth UntrustedHost va SQLite CANTOPEN errors khi deploy len AWS
 
 ## Bug Description
-Two related issues:
-1. **URL Routing Bug**: When pasting a GitHub PR URL (e.g., `https://github.com/owner/repo/pull/123`) in the "Connect URL" tab, the app always calls the GitLab API which fails with "Invalid GitLab MR URL" error
-2. **Missing Feature**: No UI to manage Git provider accounts (GitHub, GitLab, self-hosted GitLab tokens) - users must manually configure in localStorage
+Sau khi deploy Docker container len AWS voi domain `aicodereview.paydaes.tvtgroup.io`, app gap 2 loi:
+1. NextAuth khong tin tuong host, chan tat ca auth requests
+2. SQLite khong the mo database file do permission issues
 
 ## Steps to Reproduce
-1. Go to Dashboard → New Review
-2. Select "Connect URL" tab
-3. Paste a GitHub PR URL: `https://github.com/owner/repo/pull/123`
-4. Click "Start Review"
-5. Error: "Failed to fetch MR: Invalid GitLab MR URL..."
+1. Build Docker image voi `docker buildx build --platform linux/amd64`
+2. Push len Docker Hub
+3. Deploy tren AWS voi `docker-compose -f docker-compose.prod.yml up -d`
+4. Truy cap `https://aicodereview.paydaes.tvtgroup.io`
 
 ## Actual Result
-- GitHub PR URLs fail with GitLab validation error
-- No way to configure GitHub token in UI
+- Auth requests bi reject voi error: `UntrustedHost: Host must be trusted`
+- Database operations fail voi error: `SqliteError: unable to open database file (SQLITE_CANTOPEN)`
 
 ## Expected Result
-- GitHub PR URLs should be detected and fetched via GitHub API
-- Settings page should allow configuring tokens for GitHub, GitLab, and self-hosted GitLab
+- Auth hoat dong binh thuong voi domain production
+- Database co the doc/ghi binh thuong
 
 ## Context
-- **Error Message**: "Failed to fetch MR: Invalid GitLab MR URL. Expected format: https://gitlab.com/group/project/-/merge_requests/123. Check your GitLab token in Settings."
-- **Environment**: Next.js app with existing GitLab service, newly added GitHub service
+- **Error Messages**:
+  - `[auth][error] UntrustedHost: Host must be trusted. URL was: https://aicodereview.paydaes.tvtgroup.io/api/auth/session`
+  - `SqliteError: unable to open database file { code: 'SQLITE_CANTOPEN' }`
+- **Environment**: AWS, Docker, Next.js 16.1.6, NextAuth v5
 
 ---
 
 ## Root Cause Analysis
 
-### URL Flow (Current - Broken)
+### Bug 1: UntrustedHost Error
+
 ```
-User pastes URL → new/page.tsx:133 → /api/gitlab/fetch-mr → GitLabService.parseMrUrl()
-                                                                   ↓
-                                             Returns null for GitHub URLs
-                                                                   ↓
-                                             "Invalid GitLab MR URL" error
+Request Flow:
++------------------------------------------------------------------+
+| Client -> Reverse Proxy -> Docker Container (port 3000)          |
+|                                                                   |
+| Host header: aicodereview.paydaes.tvtgroup.io                    |
+|                     |                                             |
+| NextAuth checks: Is this host trusted? -> NO (default behavior)  |
+|                     |                                             |
+| REJECT with UntrustedHost error                                  |
++------------------------------------------------------------------+
 ```
 
-### Key Files:
-| File | Issue |
-|------|-------|
-| `src/app/dashboard/reviews/new/page.tsx:133` | Always calls `/api/gitlab/fetch-mr` regardless of URL |
-| `src/app/api/gitlab/fetch-mr/route.ts:13-15` | Validates URL as GitLab format only |
-| `src/lib/github-service.ts` | Has `parsePrUrl()` but no fetch endpoint |
-| Missing | `/api/github/fetch-pr` endpoint |
-| `src/app/dashboard/settings/page.tsx` | No Git account management section |
+**File**: `src/auth.ts:5-31`
 
-### Why It Fails:
-1. `new/page.tsx` has no URL type detection - hardcoded to call GitLab API
-2. No GitHub PR fetch endpoint exists (only push-comments was created)
-3. GitLab's `parseMrUrl()` returns `null` for non-GitLab URLs
-4. Settings page has no way to save/manage Git provider tokens
+NextAuth v5 mac dinh KHONG tin tuong bat ky host nao trong production de bao ve chong CSRF attacks. Can explicitly enable `trustHost: true` trong config.
+
+### Bug 2: SQLite CANTOPEN Error
+
+```
+Path Mismatch:
++------------------------------------------------------------------+
+| Code expects:     /app/reviews.db  (process.cwd() = /app)        |
+| Volume mounts:    /app/data  (app-data volume)                   |
+| User permissions: nextjs can ONLY write to /app/data             |
+|                                                                   |
+| Result: Cannot create /app/reviews.db -> SQLITE_CANTOPEN         |
++------------------------------------------------------------------+
+```
+
+**File**: `src/lib/review-store.ts:25`
+```typescript
+const DB_PATH = path.join(process.cwd(), "reviews.db");  // = /app/reviews.db
+```
+
+**File**: `Dockerfile:67`
+```dockerfile
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data  # Only /app/data is writable
+```
+
+**File**: `docker-compose.prod.yml:24`
+```yaml
+volumes:
+  - app-data:/app/data  # Mount to /app/data, not /app
+```
+
+Database path `/app/reviews.db` khong nam trong volume mount `/app/data`, va user `nextjs` khong co quyen ghi vao `/app`.
 
 ---
 
 ## Proposed Fixes
 
-### Fix Option 1 (Recommended): Full Git Provider Support
+### Fix 1: UntrustedHost (Recommended)
 
-**Changes Required**:
-
-| File | Change |
-|------|--------|
-| `src/app/api/github/fetch-pr/route.ts` | **NEW** - Create GitHub PR fetch endpoint |
-| `src/app/dashboard/reviews/new/page.tsx` | Add URL type detection, route to correct API |
-| `src/components/settings/git-accounts-form.tsx` | **NEW** - Git accounts management component |
-| `src/app/dashboard/settings/page.tsx` | Add Git Accounts section |
-
-**Flow After Fix**:
-```
-User pastes URL → Detect URL type → Route to correct API
-                       │
-          ┌────────────┴────────────┐
-          ↓                         ↓
-   GitHub PR URL             GitLab MR URL
-          ↓                         ↓
-   /api/github/fetch-pr      /api/gitlab/fetch-mr
+**Option A: Add `trustHost: true` in auth.ts**
+```typescript
+// src/auth.ts
+export const { handlers, signIn, signOut, auth } = NextAuth({
+    trustHost: true,  // <- Add this line
+    providers: [...],
+})
 ```
 
-**Settings UI**:
-```
-┌─────────────────────────────────────────────┐
-│ Git Accounts                                 │
-├─────────────────────────────────────────────┤
-│ ○ GitHub.com                                │
-│   Token: [ghp_***************] [Save]        │
-│                                              │
-│ ○ GitLab.com                                │
-│   Token: [glpat-***************] [Save]      │
-│                                              │
-│ ○ Self-hosted GitLab                        │
-│   URL:   [https://gitlab.company.com]       │
-│   Token: [***************] [Save]            │
-└─────────────────────────────────────────────┘
+**Option B: Set environment variable**
+```yaml
+# docker-compose.prod.yml
+environment:
+  - AUTH_TRUST_HOST=true
 ```
 
-### Fix Option 2 (Alternative): URL Detection Only
-- Add URL detection in `new/page.tsx`
-- Show "GitHub PRs not yet supported" error for GitHub URLs
-- **Trade-off**: Quick fix but doesn't add GitHub support
+-> **Recommend Option A** vi no explicit trong code va khong phu thuoc vao env config.
+
+### Fix 2: SQLite Path (Recommended)
+
+**Change database path to use /app/data directory:**
+```typescript
+// src/lib/review-store.ts
+const DB_PATH = path.join(process.cwd(), "data", "reviews.db");  // = /app/data/reviews.db
+```
+
+Dieu nay dam bao database file nam trong:
+- Volume mount (`app-data:/app/data`) -> persist data across container restarts
+- Directory co write permission cho user `nextjs`
 
 ---
 
 ## Verification Plan
 
-### Manual Testing
-1. Create new review with GitHub PR URL → Should fetch PR files
-2. Create new review with GitLab MR URL → Should continue working
-3. Settings → Git Accounts → Save GitHub token → Verify persists
-4. Settings → Git Accounts → Save GitLab token → Verify persists
+### Manual Test Steps
+1. Rebuild Docker image sau khi fix
+2. Push len Docker Hub
+3. Redeploy tren AWS
+4. Verify:
+   - Auth: Truy cap dashboard, khong co UntrustedHost error
+   - Database: Tao review moi, khong co SQLITE_CANTOPEN error
+   - Data persistence: Restart container, data van con
 
-### Edge Cases
-- Invalid URLs (not GitHub or GitLab)
-- Self-hosted GitLab URLs
-- Private repos without token
-- Expired/invalid tokens
+### Commands
+```bash
+# Rebuild va push
+docker buildx build --platform linux/amd64 -t thongphm/ai-codereview:latest --push .
+
+# On AWS server
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d
+
+# Check logs
+docker-compose -f docker-compose.prod.yml logs -f
+```
 
 ---
 
@@ -128,18 +154,29 @@ User pastes URL → Detect URL type → Route to correct API
 
 ### Files Changed
 
-| File | Change |
-|------|--------|
-| `src/app/api/github/fetch-pr/route.ts` | **NEW** - GitHub PR fetch endpoint using GitHubService |
-| `src/app/dashboard/reviews/new/page.tsx` | Added URL type detection (GitHub vs GitLab), routes to correct API |
-| `src/components/settings/git-accounts-form.tsx` | **NEW** - Git accounts management with GitHub, GitLab, Self-hosted GitLab |
-| `src/app/dashboard/settings/page.tsx` | Added Git Accounts section above AI Config |
+1. **src/auth.ts** - Added `trustHost: true` to NextAuth config
+   ```typescript
+   export const { handlers, signIn, signOut, auth } = NextAuth({
+       trustHost: true,  // <- ADDED
+       providers: [...]
+   })
+   ```
+
+2. **src/lib/review-store.ts:25** - Changed database path
+   ```typescript
+   // Before:
+   const DB_PATH = path.join(process.cwd(), "reviews.db");
+
+   // After:
+   const DB_PATH = path.join(process.cwd(), "data", "reviews.db");
+   ```
 
 ### Test Results
-- TypeScript compilation: PASS
-- Dev server: Compiling successfully
+- Local tests: N/A (requires Docker deployment to verify)
+- Need to rebuild Docker image and deploy to AWS for verification
 
-### Verification Steps
-1. Go to Settings → Git Accounts → Add your GitHub token
-2. Go to New Review → Paste a GitHub PR URL → Should fetch successfully
-3. Go to New Review → Paste a GitLab MR URL → Should continue working
+### Next Steps
+1. Start Docker Desktop
+2. Run: `docker buildx build --platform linux/amd64 -t thongphm/ai-codereview:latest --push .`
+3. On AWS: `docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml pull && docker-compose -f docker-compose.prod.yml up -d`
+4. Verify errors are resolved

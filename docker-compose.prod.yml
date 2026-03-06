@@ -10,6 +10,7 @@ services:
     environment:
       - NODE_ENV=production
       - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_TRUST_HOST=true
       # OAuth
       - AUTH_GITHUB_ID=${AUTH_GITHUB_ID:-}
       - AUTH_GITHUB_SECRET=${AUTH_GITHUB_SECRET:-}

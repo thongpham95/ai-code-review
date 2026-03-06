@@ -1,3 +1,16 @@
+import crypto from "crypto";
+
+/**
+ * Calculate GitLab line_code for diff position
+ * Format: SHA1(old_path + new_path)[0..39] + "_" + old_line + "_" + new_line
+ */
+function calculateLineCode(oldPath: string, newPath: string, oldLine?: number, newLine?: number): string {
+    const pathHash = crypto.createHash("sha1").update(oldPath + newPath).digest("hex").substring(0, 40);
+    const oldLineStr = oldLine ?? "";
+    const newLineStr = newLine ?? "";
+    return `${pathHash}_${oldLineStr}_${newLineStr}`;
+}
+
 export interface GitLabMR {
     id: number;
     iid: number;
@@ -150,15 +163,19 @@ export class GitLabService {
         const payload: Record<string, unknown> = { body };
 
         if (position) {
+            const oldPath = position.oldPath || position.newPath || "";
+            const newPath = position.newPath || position.oldPath || "";
+
             payload.position = {
                 base_sha: position.baseSha,
                 start_sha: position.startSha,
                 head_sha: position.headSha,
                 position_type: position.positionType,
-                new_path: position.newPath,
-                old_path: position.oldPath,
+                new_path: newPath,
+                old_path: oldPath,
                 new_line: position.newLine,
                 old_line: position.oldLine,
+                line_code: calculateLineCode(oldPath, newPath, position.oldLine, position.newLine),
             };
         }
 
