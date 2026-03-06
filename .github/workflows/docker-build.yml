@@ -1,15 +1,10 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - '*.*.*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., 1.0.1)'
+        description: 'Version tag (e.g., 1.0.4)'
         required: false
         default: 'latest'
 
@@ -40,10 +35,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
+            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != 'latest' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
