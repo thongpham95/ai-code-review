@@ -1,8 +1,9 @@
 import { google } from "@ai-sdk/google"
 import { streamText } from "ai"
+import { updateReview } from "@/lib/review-store"
 
 export async function POST(req: Request) {
-    const { code, config, contextDocuments, language = "en", customRules } = await req.json()
+    const { code, config, contextDocuments, language = "en", customRules, reviewId } = await req.json()
 
     // Language-specific prompts
     const isVietnamese = language === "vi"
@@ -111,10 +112,21 @@ corrected code snippet
     const aiModel = google("gemini-2.5-flash")
 
     try {
-        const result = await streamText({
+        const result = streamText({
             model: aiModel,
             system: systemPrompt,
             messages: [{ role: "user", content: userContent }],
+            onFinish: async ({ usage }) => {
+                // Save token usage to the review record
+                if (reviewId && usage) {
+                    const totalTokens = usage.totalTokens || ((usage.inputTokens || 0) + (usage.outputTokens || 0))
+                    try {
+                        updateReview(reviewId, { tokenUsage: totalTokens })
+                    } catch (e) {
+                        console.error("Failed to save token usage:", e)
+                    }
+                }
+            },
         })
 
         return result.toTextStreamResponse()

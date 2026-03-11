@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
-import { LayoutDashboard, FileCode, Settings } from "lucide-react"
+import { LayoutDashboard, FileCode, Settings, Bug } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
 export function SidebarNav({ className, ...props }: React.HTMLAttributes<HTMLElement>) {
@@ -14,6 +14,7 @@ export function SidebarNav({ className, ...props }: React.HTMLAttributes<HTMLEle
     const sidebarItems = [
         { href: "/dashboard", title: t.nav.overview, icon: <LayoutDashboard className="mr-2 h-4 w-4" /> },
         { href: "/dashboard/reviews", title: t.nav.reviews, icon: <FileCode className="mr-2 h-4 w-4" /> },
+        { href: "/dashboard/jira-analyzer", title: t.nav.jiraAnalyzer, icon: <Bug className="mr-2 h-4 w-4" /> },
         { href: "/dashboard/settings", title: t.nav.settings, icon: <Settings className="mr-2 h-4 w-4" /> },
     ]
 

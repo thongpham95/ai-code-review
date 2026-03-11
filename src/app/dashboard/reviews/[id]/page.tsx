@@ -39,6 +39,9 @@ interface ReviewData {
     aiModel?: string
     contextDocuments?: { name: string; content: string }[]
     customRules?: string
+    userId?: string
+    userName?: string
+    tokenUsage?: number
 }
 
 export default function ReviewDetailsPage() {
@@ -62,6 +65,7 @@ export default function ReviewDetailsPage() {
     const [parsedAIReview, setParsedAIReview] = useState<ParsedAIReview | null>(null);
     const [showFullAnalysis, setShowFullAnalysis] = useState(false);
     const [showPushDialog, setShowPushDialog] = useState(false);
+    const [pushedCommentFiles, setPushedCommentFiles] = useState<Set<string>>(new Set());
 
     const handlePrint = useReactToPrint({
         contentRef: printRef,
@@ -93,6 +97,11 @@ export default function ReviewDetailsPage() {
                 if (res.ok) {
                     const data = await res.json();
                     setReview(data.review);
+                    // Track pushed comment files
+                    if (data.pushedComments && data.pushedComments.length > 0) {
+                        const pushedFiles = new Set<string>(data.pushedComments.map((pc: { fileName?: string }) => pc.fileName).filter(Boolean));
+                        setPushedCommentFiles(pushedFiles);
+                    }
                     if (data.review.aiAnalysis) {
                         setAiResult(data.review.aiAnalysis);
                         const parsed = parseAIReview(data.review.aiAnalysis);
@@ -331,6 +340,8 @@ export default function ReviewDetailsPage() {
                         <p className="text-[11px] text-muted-foreground">
                             {review.source} · {new Date(review.createdAt).toLocaleDateString()}
                             {fileCount > 0 && ` · ${fileCount} file${fileCount > 1 ? 's' : ''}`}
+                            {review.userName && ` · by ${review.userName}`}
+                            {review.tokenUsage ? ` · ${review.tokenUsage.toLocaleString()} tokens` : ''}
                         </p>
                     </div>
                 </div>
@@ -567,6 +578,7 @@ export default function ReviewDetailsPage() {
                                         onCopy={copyToClipboard}
                                         isCopied={copiedFile === file.name}
                                         onCommentUpdate={handleCommentUpdate}
+                                        isPushed={pushedCommentFiles.has(file.name)}
                                     />
                                 ))
                             ) : (
@@ -641,9 +653,10 @@ interface FileBlockProps {
     onCopy: (content: string, fileName: string) => void
     isCopied: boolean
     onCommentUpdate?: (fileName: string, updatedComment: AIFileComment) => void
+    isPushed?: boolean
 }
 
-function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, onCopy, isCopied, onCommentUpdate }: FileBlockProps) {
+function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, onCopy, isCopied, onCommentUpdate, isPushed }: FileBlockProps) {
     const lines = content.split('\n');
     const lineCount = lines.length;
     const hasAIFeedback = aiComment && (aiComment.status !== "unknown" || aiComment.issues.length > 0);
@@ -673,6 +686,11 @@ function FileBlock({ fileName, content, isExpanded, onToggle, aiComment, onCopy,
                     {aiComment?.issues && aiComment.issues.length > 0 && (
                         <Badge variant="outline" className="h-4 px-1 text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/30">
                             <Bot className="h-2.5 w-2.5 mr-0.5" />{aiComment.issues.length}
+                        </Badge>
+                    )}
+                    {isPushed && (
+                        <Badge variant="outline" className="h-4 px-1 text-[9px] bg-blue-500/10 text-blue-600 border-blue-500/30">
+                            Pushed
                         </Badge>
                     )}
                     <span className="text-[10px] text-muted-foreground">{lineCount} lines</span>

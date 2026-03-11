@@ -1,4 +1,4 @@
-import { getReview, updateReview } from "@/lib/review-store"
+import { getReview, updateReview, getPushedComments } from "@/lib/review-store"
 
 export async function GET(
     _req: Request,
@@ -11,7 +11,8 @@ export async function GET(
         return Response.json({ error: "Review not found" }, { status: 404 })
     }
 
-    return Response.json({ review })
+    const pushedComments = getPushedComments(id)
+    return Response.json({ review, pushedComments })
 }
 
 export async function PATCH(

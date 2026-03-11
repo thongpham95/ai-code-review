@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReview } from "@/lib/review-store";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
     try {
+        const session = await auth();
         const body = await req.json();
         const { title, source, sourceUrl, code, files, contextDocs, contextDocuments, aiModel, customRules } = body;
 
@@ -17,6 +19,8 @@ export async function POST(req: NextRequest) {
             contextDocuments,
             aiModel,
             customRules,
+            userId: session?.user?.id || undefined,
+            userName: session?.user?.name || session?.user?.email || undefined,
         });
 
         return NextResponse.json({

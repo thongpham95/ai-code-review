@@ -20,6 +20,9 @@ export interface Review {
     contextDocuments?: { name: string; content: string }[];
     aiModel?: string;
     customRules?: string;
+    userId?: string;
+    userName?: string;
+    tokenUsage?: number;
 }
 
 // SQLite persistent store - shared across all workers via file
@@ -62,6 +65,9 @@ function getDb(): Database.Database {
     // Migrate: add columns if missing
     try { db.exec(`ALTER TABLE reviews ADD COLUMN quickSummary TEXT`); } catch { /* already exists */ }
     try { db.exec(`ALTER TABLE reviews ADD COLUMN customRules TEXT`); } catch { /* already exists */ }
+    try { db.exec(`ALTER TABLE reviews ADD COLUMN userId TEXT`); } catch { /* already exists */ }
+    try { db.exec(`ALTER TABLE reviews ADD COLUMN userName TEXT`); } catch { /* already exists */ }
+    try { db.exec(`ALTER TABLE reviews ADD COLUMN tokenUsage INTEGER`); } catch { /* already exists */ }
 
     // Table for tracking pushed comments to GitLab/GitHub
     db.exec(`
@@ -99,6 +105,9 @@ function rowToReview(row: Record<string, unknown>): Review {
         aiModel: row.aiModel as string | undefined,
         quickSummary: row.quickSummary as string | undefined,
         customRules: row.customRules as string | undefined,
+        userId: row.userId as string | undefined,
+        userName: row.userName as string | undefined,
+        tokenUsage: row.tokenUsage as number | undefined,
     };
 }
 
@@ -113,8 +122,8 @@ export function createReview(data: Omit<Review, "id" | "createdAt" | "status">):
     };
 
     const stmt = db.prepare(`
-        INSERT INTO reviews (id, title, source, sourceUrl, status, createdAt, completedAt, patternResults, aiResults, aiAnalysis, quickSummary, code, files, contextDocs, contextDocuments, aiModel, customRules)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO reviews (id, title, source, sourceUrl, status, createdAt, completedAt, patternResults, aiResults, aiAnalysis, quickSummary, code, files, contextDocs, contextDocuments, aiModel, customRules, userId, userName, tokenUsage)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -135,6 +144,9 @@ export function createReview(data: Omit<Review, "id" | "createdAt" | "status">):
         review.contextDocuments ? JSON.stringify(review.contextDocuments) : null,
         review.aiModel || null,
         review.customRules || null,
+        review.userId || null,
+        review.userName || null,
+        review.tokenUsage || null,
     );
 
     db.close();
@@ -175,6 +187,9 @@ export function updateReview(id: string, data: Partial<Review>): Review | undefi
         aiModel: (v) => v,
         quickSummary: (v) => v,
         customRules: (v) => v,
+        userId: (v) => v,
+        userName: (v) => v,
+        tokenUsage: (v) => v,
     };
 
     for (const [key, transform] of Object.entries(fieldMap)) {
@@ -210,7 +225,7 @@ export function searchReviews(query: string): Review[] {
     return rows.map(rowToReview);
 }
 
-export function getStats(): { totalReviews: number; totalIssues: number; completedToday: number } {
+export function getStats(): { totalReviews: number; totalIssues: number; completedToday: number; dailyTokens: number } {
     const db = getDb();
     const today = new Date().toISOString().split("T")[0];
 
@@ -229,13 +244,36 @@ export function getStats(): { totalReviews: number; totalIssues: number; complet
         }
     }, 0);
 
+    // Daily token usage
+    const tokenRow = db.prepare(
+        "SELECT COALESCE(SUM(tokenUsage), 0) as total FROM reviews WHERE createdAt LIKE ?"
+    ).get(`${today}%`) as { total: number };
+
     db.close();
 
     return {
         totalReviews: countRow.total,
         totalIssues,
         completedToday: completedRow.count,
+        dailyTokens: tokenRow.total,
     };
+}
+
+export function getDailyTokenUsage(): { total: number; byUser: { userName: string; tokens: number; count: number }[] } {
+    const db = getDb();
+    const today = new Date().toISOString().split("T")[0];
+
+    const totalRow = db.prepare(
+        "SELECT COALESCE(SUM(tokenUsage), 0) as total FROM reviews WHERE createdAt LIKE ?"
+    ).get(`${today}%`) as { total: number };
+
+    const byUser = db.prepare(
+        `SELECT COALESCE(userName, 'Unknown') as userName, COALESCE(SUM(tokenUsage), 0) as tokens, COUNT(*) as count
+         FROM reviews WHERE createdAt LIKE ? GROUP BY userName ORDER BY tokens DESC`
+    ).all(`${today}%`) as { userName: string; tokens: number; count: number }[];
+
+    db.close();
+    return { total: totalRow.total, byUser };
 }
 
 export function deleteAllReviews(): void {

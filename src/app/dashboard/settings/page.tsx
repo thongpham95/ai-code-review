@@ -3,6 +3,7 @@
 import { Separator } from "@/components/ui/separator"
 
 import { GitAccountsForm } from "@/components/settings/git-accounts-form"
+import { JiraSettingsForm } from "@/components/settings/jira-settings-form"
 import { useLanguage } from "@/contexts/language-context"
 
 export default function SettingsPage() {
@@ -32,6 +33,18 @@ export default function SettingsPage() {
                         </div>
                         <Separator />
                         <GitAccountsForm />
+                    </div>
+
+                    {/* Jira Integration Section */}
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-lg font-medium">Jira Integration</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Connect your Jira Cloud account to analyze bug tickets with AI
+                            </p>
+                        </div>
+                        <Separator />
+                        <JiraSettingsForm />
                     </div>
                 </div>
             </div>

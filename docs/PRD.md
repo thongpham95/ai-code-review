@@ -1,141 +1,57 @@
 # Tài liệu Yêu cầu Sản phẩm (PRD)
 
-## AI Code Review - Ứng dụng Review Code Tự động
+## 1. Tổng quan Sản phẩm
+Công cụ AI Code Review tự động hóa quá trình đánh giá mã nguồn bằng Google Gemini. Các yêu cầu mới nhằm mục tiêu cải thiện bảo mật, tính dễ sử dụng, khả năng theo dõi truy vết đồng thời cung cấp giao diện lập trình viên chuyên nghiệp hơn.
 
-**Phiên bản:** 2.3.0
-**Ngày cập nhật:** 2026-02-12
-**Tác giả:** thongpham95
+## 2. Mục tiêu & Định hướng
+- **Bảo mật**: Bảo vệ API keys của AI bằng cách chỉ cho phép các tài khoản thuộc công ty (`@tvtgroup.io`) truy cập hệ thống.
+- **Tính khả dụng (Usability)**: Cải thiện việc theo dõi bình luận để người dùng không nhìn thấy hoặc vô tình đẩy (push) lại các bình luận đã được đẩy lên Git. Tự động mở rộng (auto-expand) các file có lỗi.
+- **Theo dõi (Tracking)**: Theo dõi người dùng nào đã thực hiện phiên review để đảm bảo trách nhiệm và đánh giá mức độ sử dụng.
+- **Thẩm mỹ (Aesthetics)**: Cung cấp giao diện khối (block-based) cao cấp, mang tính kỹ thuật, sử dụng typography chuyên nghiệp (JetBrains Mono, IBM Plex Sans) nhắm tới Tech Lead và Developer.
 
----
+## 3. Người dùng Mục tiêu
+- **Lập trình viên (Developers)**: Cần phản hồi AI nhanh chóng, đáng tin cậy mà không phải tự dò kiểm tra xem bình luận nào đã được đẩy lên Git rồi.
+- **Trưởng nhóm Kỹ thuật (Tech Leads)**: Theo dõi việc sử dụng AI trong team, biết ai đang review MR nào, và đảm bảo chất lượng mã nguồn.
 
-## 1. Tổng quan sản phẩm
+## 4. Các tính năng & Yêu cầu
 
-### 1.1 Mục đích
-AI Code Review là ứng dụng web giúp lập trình viên review code tự động bằng AI, tích hợp sâu với GitHub/GitLab. Phiên bản 2.3 hoàn thiện tính năng đẩy comment trực tiếp lên PR/MR và cho phép chỉnh sửa thủ công feedback của AI.
-
-### 1.2 Vấn đề cần giải quyết
-- Code review thủ công tốn nhiều thời gian.
-- Thiếu sự nhất quán trong feedback.
-- Rào cản ngôn ngữ với các developer không thành thạo tiếng Anh.
-- Khó khăn trong việc chia sẻ kết quả review (PDF/In ấn).
-- Khó tìm lại review cũ khi cần tham khảo.
-
-### 1.3 Giải pháp
-- Review code bằng **Google Gemini Flash** (chế độ duy nhất được sử dụng cho cả tốc độ và chất lượng để tối giản hệ thống).
-- Hỗ trợ hoàn toàn Tiếng Việt và Tiếng Anh (Chuyển đổi ngôn ngữ trực tiếp trong màn hình Review Detail).
-- **Tương tác 2 chiều**: Push comment lên GitHub/GitLab, chỉnh sửa comment trước khi push.
-- Xuất báo cáo review ra PDF.
-- Giao diện trực quan với chế độ xem Lưới/Danh sách.
-- **Tối ưu trải nghiệm**: Khởi tạo AI Review ngay lập tức (1-click review) và hỗ trợ xử lý nhiều MR/PR URL cùng lúc.
-- **Tương tác 2 chiều**: Push comment lên GitHub/GitLab, chỉnh sửa comment trước khi push.
-- Xuất báo cáo review ra PDF.
-- Giao diện trực quan với chế độ xem Lưới/Danh sách.
-
----
-
-## 2. Người dùng mục tiêu
-
-### 2.1 Người dùng chính
-- **Developer**: Review code cá nhân trước khi tạo MR.
-- **Tech Lead**: Review code của thành viên, chỉnh sửa feedback của AI rồi push lên Git.
-- **Outsourcing Team**: Cần báo cáo chuyên nghiệp để gửi khách hàng.
-
-### 2.2 Chân dung người dùng (Personas)
-
-**Persona 1: Minh - Senior Dev**
-- Cần review nhanh, chính xác cho code phức tạp.
-- Chỉnh sửa lại các comment của AI cho phù hợp ngữ cảnh dự án rồi mới push.
-
-**Persona 2: Lan - Junior Dev**
-- Cần giải thích chi tiết, dễ hiểu bằng tiếng Việt.
-- Sử dụng tính năng 1-click để tự động chạy review code ngay khi tạo review mới.
-
----
-
-## 3. Yêu cầu chức năng
-
-### 3.1 Authentication (P0)
-| ID | Chức năng | Mô tả | Trạng thái |
-|----|-----------|-------|------------|
-| AUTH-01 | GitHub/GitLab OAuth | Đăng nhập bằng tài khoản Git | ✅ Hoàn thành |
-| AUTH-02 | Session Management | Quản lý phiên làm việc an toàn | ✅ Hoàn thành |
-
-### 3.2 Code Review Core (P0)
-| ID | Chức năng | Mô tả | Trạng thái |
-|----|-----------|-------|------------|
-| REV-01 | Webhook/URL/Paste | Nguồn code linh hoạt, hỗ trợ nhập **nhiều MR URLs cùng lúc** | ✅ Hoàn thành / 🟡 Nâng cấp |
-| REV-02 | AI Analysis | Phân tích code tìm lỗi, security, performance (Chỉ dùng **Gemini Flash**) | ✅ Hoàn thành |
-| REV-03 | **[MỚI] 1-Click Review** | Chọn ngôn ngữ và tự động chạy AI Review ngay khi Submit tạo review | 🟡 Nâng cấp |
-| REV-04 | **[MỚI] Tìm kiếm và Quản lý** | Tìm kiếm review theo title, từ khoá. Hỗ trợ **xoá hàng loạt (Bulk Delete)** | ✅ Hoàn thành / 🟡 Nâng cấp |
-| REV-05 | **[MỚI] Git Integration** | Push comment lên PR/MR | ✅ Hoàn thành |
-
-### 3.3 Giao diện & Trải nghiệm (P1)
-| ID | Chức năng | Mô tả | Trạng thái |
-|----|-----------|-------|------------|
-| UI-01 | Đa ngôn ngữ | Chuyển ngôn ngữ AI review **trực tiếp trong màn hình Review Detail** | ✅ Hoàn thành / 🟡 Nâng cấp |
-| UI-02 | List/Grid View | Tùy chọn hiển thị danh sách Review | ✅ Hoàn thành |
-| UI-03 | Smart Sorting | Sắp xếp, nhóm review. Chọn và **xoá hàng loạt** review | ✅ Hoàn thành / 🟡 Nâng cấp |
-| UI-04 | **Manual Edit** | Chỉnh sửa/Từ chối AI comment | ✅ Hoàn thành |
-
-### 3.4 Báo cáo & Export (P1)
-| ID | Chức năng | Mô tả | Trạng thái |
-|----|-----------|-------|------------|
-| REP-01 | Export PDF | Xuất kết quả review ra file PDF | ✅ Hoàn thành |
-
----
-
-## 4. Roadmap & Tính năng tương lai
-
-### Phase 2: UI/UX & Optimization (Hoàn thành — v2.2)
-- [x] Hỗ trợ đa ngôn ngữ (i18n).
-- [x] Chọn Model AI (Gemini Flash / Pro).
-- [x] Giao diện Review List (Grid/List, Sort, Group).
-- [x] Export PDF.
-- [x] **Tìm kiếm Review** theo title, từ khoá.
-- [x] **Đơn giản hoá**: chỉ giữ Gemini, xoá Anthropic/OpenAI.
-- [x] **GitHub/GitLab-like UI**: Giao diện review giống GitHub/GitLab.
-- [x] **Inline AI Comments**: AI comment hiển thị trực tiếp dưới mỗi file.
-- [x] **Unified View**: Gộp Code & AI Review thành 1 giao diện thống nhất.
-- [x] **Optimized UI Density**: Giảm padding, hiển thị nhiều nội dung hơn.
-
-### Phase 3: Deep Integration (Đang triển khai — v2.3)
-
-#### 3.1 Git Integration (P0)
-- [x] **Push to GitLab**: Đẩy AI comment lên GitLab MR.
-- [x] **Push to GitHub**: Đẩy AI comment lên GitHub PR.
-- [x] **Comment Selection**: Chọn comment nào muốn push.
-- [x] **Push Status Tracking**: Theo dõi comment đã push.
-- [x] **Manual Edit Strategy**: Chỉnh sửa nội dung comment trước khi push.
-
-#### 3.2 RAG Enhancement (P1)
-- [ ] **Document Library**: Quản lý tài liệu context (persistent).
-- [ ] **Project Association**: Gắn tài liệu với dự án.
-- [ ] **Smart Chunking**: Chia nhỏ tài liệu lớn, chọn phần liên quan.
-- [ ] **Multi-format Support**: MD, TXT, PDF, Code.
-
-#### 3.3 Webhook Auto-Review (P2)
-- [ ] **GitLab Webhook**: Tự động review khi có MR mới.
-- [ ] **GitHub Webhook**: Tự động review khi có PR mới.
-- [ ] **Auto-post Results**: Tự động đăng kết quả lên MR/PR.
-
-> Chi tiết: Xem `IMPLEMENTATION_PLAN_PHASE3.md`
-
----
+### Tính năng Cốt lõi
+- [ ] **Tính năng 1: Xác thực Google Workspace**
+  - Tích hợp đăng nhập bằng Google OAuth.
+  - Hạn chế truy cập đặc quyền chỉ dành cho email đuôi `@tvtgroup.io`.
+  - Chuyển hướng người dùng chưa xác thực về trang đăng nhập.
+- [ ] **Tính năng 2: Theo dõi Bình luận Đã Push & Tự mở rộng**
+  - Truy xuất `pushed_comments` (bình luận đã đẩy) từ cơ sở dữ liệu.
+  - Giao diện (UI) phân biệt rõ ràng các bình luận đã đẩy (trạng thái chỉ đọc hoặc ẩn khỏi hàng chờ "push").
+  - Tự động mở rộng các file trên UI nếu nhận được bình luận lỗi từ AI.
+- [ ] **Tính năng 3: Theo dõi Người dùng trên Review**
+  - Lưu trữ `userId` và `userName` khi phiên review được tạo.
+  - Hiển thị tên/avatar của tác giả trên mỗi mục đánh giá (review item) ở trang dashboard.
+  - Thêm dropdown lọc danh sách reviews theo từng người dùng.
+- [ ] **Tính năng 4: Tối ưu UI Chuyên nghiệp**
+  - Áp dụng hệ thống thiết kế "Công cụ Lập trình viên" (Developer Tools): Màu Slate/Dark chủ đạo, Độ tương phản cao.
+  - Sử dụng Font `JetBrains Mono` cho code/số và `IBM Plex Sans` cho văn bản nội dung.
+  - Đảm bảo tất cả các thành phần bấm được đều có `cursor-pointer`, hiệu ứng chuyển động mượt mà, và dùng hệ thống icon SVG tiêu chuẩn (loại bỏ emoji).
+- [ ] **Tính năng 5: Theo dõi Số lượng Token AI đã dùng**
+  - Theo dõi và hiển thị số lượng token đã dùng cho mỗi lần thực hiện review mã nguồn.
+  - Hiển thị bảng tóm tắt mức sử dụng chi tiết (vd: tổng số lượng token đã dùng trong ngày) ở trang chủ hoặc trên thanh công cụ (toolbar) để dễ theo dõi.
 
 ## 5. Kiến trúc Kỹ thuật
 
-### 5.1 Tech Stack
-- **Frontend**: Next.js 16, React 19, Tailwind CSS 4, `react-to-print`.
-- **Backend**: Next.js API Routes, `better-sqlite3`.
-- **AI**: Vercel AI SDK — **Chỉ dùng Google Gemini Flash**.
+### Thay đổi Database (SQLite)
+- **Bảng `reviews`**: Thêm cột `userId TEXT`, `userName TEXT`, và `tokenUsage INTEGER`.
+- **Bảng `daily_usage`**: Thêm bảng hoặc logic để theo dõi tổng số token sử dụng trong ngày (`date` và `totalTokens`).
 
-### 5.2 Quản lý Source Code
-- **Branching Strategy**: Feature branching (`feature/ten-tinh-nang`).
+### Cơ sở hạ tầng
+- NextAuth v5 cho Google Provider.
+- `better-sqlite3` cho việc lưu trữ dữ liệu bền vững.
+- Next.js App Router.
 
----
-
-## 6. Phụ lục
-- **Glossary**:
-    - **RAG**: Retrieval-Augmented Generation (AI học từ tài liệu).
-    - **Diff**: Sự khác biệt giữa 2 phiên bản code.
-    - **Gemini Flash**: Model tĩnh gọn, tối ưu tốc độ và chất lượng cho mọi bài toán review.
+## 6. Hướng dẫn UI/UX
+- **Bảng màu (Color Stack)**: 
+  - Màu chính (Primary): `#1E293B`
+  - Chọn/Kích hoạt (Selected/Active): `#22C55E`
+  - Nền (Background): `#0F172A`
+  - Chữ (Text): `#F8FAFC`
+- **Kiểu chữ (Typography)**: `JetBrains Mono` (Tiêu đề/Code), `IBM Plex Sans` (Nội dung).
+- **Icons**: Chỉ dùng hệ thống Lucide React. Loại bỏ emoji.

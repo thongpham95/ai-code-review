@@ -23,6 +23,8 @@ interface ReviewItem {
     createdAt: string
     source: string
     quickSummary?: string
+    userName?: string
+    tokenUsage?: number
 }
 
 type ViewMode = "grid" | "list"
@@ -41,6 +43,7 @@ export default function ReviewsPage() {
     const [isDeleting, setIsDeleting] = useState(false)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const { t } = useLanguage()
+    const [userFilter, setUserFilter] = useState<string>("all")
 
     const fetchReviews = useCallback(async (query?: string) => {
         try {
@@ -136,7 +139,15 @@ export default function ReviewsPage() {
         }
     }
 
-    const sortedReviews = [...reviews].sort((a, b) => {
+    // Get unique users for filter dropdown
+    const uniqueUsers = [...new Set(reviews.map(r => r.userName).filter(Boolean))] as string[]
+
+    // Apply user filter
+    const filteredReviews = userFilter === "all"
+        ? reviews
+        : reviews.filter(r => r.userName === userFilter)
+
+    const sortedReviews = [...filteredReviews].sort((a, b) => {
         if (sortBy === "date") {
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         }
@@ -185,6 +196,7 @@ export default function ReviewsPage() {
                             </div>
                             <CardDescription className="truncate text-xs">
                                 {timeAgo(review.createdAt)} · {review.source}
+                                {review.userName && ` · ${review.userName}`}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -202,6 +214,9 @@ export default function ReviewsPage() {
                                     }`}>
                                     {review.status}
                                 </span>
+                                {review.tokenUsage ? (
+                                    <span className="text-[10px] text-muted-foreground">{review.tokenUsage.toLocaleString()} tokens</span>
+                                ) : null}
                             </div>
                         </CardContent>
                     </Card>
@@ -231,6 +246,8 @@ export default function ReviewsPage() {
                                     </p>
                                     <p className="text-xs text-muted-foreground">
                                         {timeAgo(review.createdAt)} · {review.source}
+                                        {review.userName && ` · ${review.userName}`}
+                                        {review.tokenUsage ? ` · ${review.tokenUsage.toLocaleString()} tokens` : ''}
                                     </p>
                                 </div>
                             </div>
@@ -358,6 +375,21 @@ export default function ReviewsPage() {
                         <SelectItem value="date">{t.reviews.groupDate}</SelectItem>
                     </SelectContent>
                 </Select>
+
+                {/* User Filter */}
+                {uniqueUsers.length > 0 && (
+                    <Select value={userFilter} onValueChange={setUserFilter}>
+                        <SelectTrigger className="w-auto h-7 text-xs gap-1">
+                            <SelectValue placeholder="All users" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Users</SelectItem>
+                            {uniqueUsers.map(user => (
+                                <SelectItem key={user} value={user}>{user}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
             </div>
 
             {loading ? (
