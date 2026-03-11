@@ -1,20 +1,22 @@
 # AI Code Review
 
 [![Docker Image](https://img.shields.io/badge/Docker-thongphm%2Fai--codereview-blue)](https://hub.docker.com/r/thongphm/ai-codereview)
-[![Version](https://img.shields.io/badge/version-1.0.5-green)](https://github.com/thongpham95/ai-code-review/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-green)](https://github.com/thongpham95/ai-code-review/releases)
 
 Ứng dụng web review code tự động sử dụng AI (Google Gemini Flash), hỗ trợ tích hợp GitLab và GitHub.
 
 ## Tính năng chính
 
 - **100% AI-Powered Review**: Tập trung hoàn toàn vào đánh giá sâu của Google Gemini Flash — không còn sử dụng pattern scanner tĩnh.
+- **Jira AI Bug Analyzer**: Phân tích bug Jira tự động, hiển thị dashboard performance và báo cáo chi tiết cho team.
+- **AI Token Tracking**: Cung cấp dashboard để theo dõi chi phí sử dụng token AI, số reviews và lỗi phát hiện.
 - **Custom Review Rules**: Người dùng có thể nhập trọng tâm review cụ thể (ví dụ: "Tập trung bắt lỗi bảo mật", "Kiểm tra chuẩn code React") — AI sẽ tuân theo.
 - **Quick Summary**: Mỗi review trong danh sách hiển thị 1-3 dòng tóm tắt nhanh từ AI, giúp nắm bắt tổng quan ngay lập tức.
 - **Problematic Files Navigation**: Sau khi AI review xong, panel "Files có vấn đề" hiển thị trên đầu trang — click để nhảy thẳng tới file cần chú ý.
 - **1-Click Copy Fix**: Nút copy code đã sửa tích hợp sẵn trong mỗi issue mà AI phát hiện.
 - **GitLab & GitHub Integration**: Lấy thông tin từ **nhiều MR/PR cùng lúc**, Push AI Comments trực tiếp lên GitLab/GitHub.
 - **1-Click Review**: Tự động chạy AI Review ngay sau khi tạo review — không cần bước trung gian.
-- **Authentication**: GitHub OAuth, GitLab OAuth, GitLab Self-Hosted (PAT).
+- **Authentication**: GitHub OAuth, GitLab OAuth, GitLab Self-Hosted (PAT), Google Workspace (chỉ định domain).
 - **Manual Review Control**: Chỉnh sửa, từ chối hoặc cập nhật comment của AI trước khi push.
 - **Đa ngôn ngữ AI**: Chọn ngôn ngữ đầu ra AI (English/Tiếng Việt) trực tiếp trên giao diện.
 - **Context Documents**: Upload PDF, Word, Excel làm context cho AI hiểu nghiệp vụ.
@@ -153,7 +155,13 @@ Xem chi tiết tại folder [docs/](docs/):
 
 ## Changelog
 
-### v1.0.5 (Current)
+### v1.1.0 (Current)
+- **Jira AI Analyzer**: Phân tích bug Jira tự động, hiển thị dashboard báo cáo hiệu suất cá nhân và dự án.
+- **AI Token Usage Tracker**: Dashboard hiển thị và thống kê số token sử dụng từ Gemini.
+- **Google Workspace Login**: Thêm tính năng đăng nhập SSO an toàn theo domain tổ chức.
+- Cải tiến giao diện với dark mode, badge tracking và sidebar cập nhật.
+
+### v1.0.5
 - Updated legacy VS Code extension documentation
 - Improved README with complete feature documentation
 
