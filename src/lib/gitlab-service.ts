@@ -217,6 +217,60 @@ export class GitLabService {
     }
 
     /**
+     * Search commits on a branch by keyword (e.g. Jira ticket ID)
+     */
+    async searchCommits(projectId: number | string, keyword: string, branch: string = "tvt_qc", perPage: number = 20): Promise<GitLabCommit[]> {
+        const encodedId = typeof projectId === "string" ? encodeURIComponent(projectId) : projectId;
+        const url = `${this.baseUrl}/api/v4/projects/${encodedId}/repository/commits?ref_name=${encodeURIComponent(branch)}&search=${encodeURIComponent(keyword)}&per_page=${perPage}`;
+
+        const response = await fetch(url, {
+            headers: this.getHeaders(),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to search commits: ${response.statusText}`);
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Get recent commits on a branch (fallback when search returns empty)
+     */
+    async getRecentCommits(projectId: number | string, branch: string = "tvt_qc", perPage: number = 50): Promise<GitLabCommit[]> {
+        const encodedId = typeof projectId === "string" ? encodeURIComponent(projectId) : projectId;
+        const url = `${this.baseUrl}/api/v4/projects/${encodedId}/repository/commits?ref_name=${encodeURIComponent(branch)}&per_page=${perPage}`;
+
+        const response = await fetch(url, {
+            headers: this.getHeaders(),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get recent commits: ${response.statusText}`);
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Get diff for a specific commit
+     */
+    async getCommitDiff(projectId: number | string, sha: string): Promise<GitLabFileDiff[]> {
+        const encodedId = typeof projectId === "string" ? encodeURIComponent(projectId) : projectId;
+        const url = `${this.baseUrl}/api/v4/projects/${encodedId}/repository/commits/${sha}/diff`;
+
+        const response = await fetch(url, {
+            headers: this.getHeaders(),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get commit diff: ${response.statusText}`);
+        }
+
+        return response.json();
+    }
+
+    /**
      * Check if the authenticated user has merge permission for an MR
      */
     async getMergeRequestPermissions(projectPath: string, mrIid: number): Promise<GitLabMRPermissions> {
@@ -262,4 +316,22 @@ export interface GitLabDiffRefs {
 
 export interface GitLabMRPermissions {
     canMerge: boolean;
+}
+
+export interface GitLabCommit {
+    id: string;
+    short_id: string;
+    title: string;
+    message: string;
+    author_name: string;
+    created_at: string;
+}
+
+export interface GitLabFileDiff {
+    old_path: string;
+    new_path: string;
+    new_file: boolean;
+    renamed_file: boolean;
+    deleted_file: boolean;
+    diff: string;
 }

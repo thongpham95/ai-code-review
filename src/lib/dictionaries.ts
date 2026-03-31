@@ -21,6 +21,7 @@ export const dictionaries = {
             overview: "Overview",
             reviews: "Reviews",
             jiraAnalyzer: "Bug Analyzer",
+            mobileApi: "Mobile API",
             settings: "Settings",
         },
         // Dashboard
@@ -151,6 +152,7 @@ export const dictionaries = {
             overview: "Tổng quan",
             reviews: "Đánh giá",
             jiraAnalyzer: "Phân tích Bug",
+            mobileApi: "Mobile API",
             settings: "Cài đặt",
         },
         // Bảng điều khiển
@@ -269,7 +271,7 @@ export interface Dictionary {
         back: string; new: string; search: string; noResults: string; justNow: string;
         mAgo: (m: number) => string; hAgo: (h: number) => string; dAgo: (d: number) => string;
     };
-    nav: { overview: string; reviews: string; jiraAnalyzer: string; settings: string };
+    nav: { overview: string; reviews: string; jiraAnalyzer: string; mobileApi: string; settings: string };
     dashboard: {
         title: string; newReview: string; totalReviews: string;
         completedToday: (n: number) => string; issuesFound: string; byPatternScanner: string;

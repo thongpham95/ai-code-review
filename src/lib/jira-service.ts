@@ -97,7 +97,7 @@ export class JiraService {
      * Search issues using JQL
      */
     async searchIssues(jql: string, maxResults: number = 50): Promise<JiraSearchResult> {
-        const url = `${this.host}/rest/api/3/search`;
+        const url = `${this.host}/rest/api/3/search/jql`;
 
         const response = await fetch(url, {
             method: "POST",

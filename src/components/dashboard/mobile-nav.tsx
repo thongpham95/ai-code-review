@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { Menu, LayoutDashboard, FileCode, Settings, Bug } from "lucide-react"
+import { Menu, LayoutDashboard, FileCode, Settings, Bug, Smartphone } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
 export function MobileNav() {
@@ -18,6 +18,7 @@ export function MobileNav() {
         { href: "/dashboard", title: t.nav.overview, icon: LayoutDashboard },
         { href: "/dashboard/reviews", title: t.nav.reviews, icon: FileCode },
         { href: "/dashboard/jira-analyzer", title: t.nav.jiraAnalyzer, icon: Bug },
+        { href: "/dashboard/mobile-api-checker", title: t.nav.mobileApi, icon: Smartphone },
         { href: "/dashboard/settings", title: t.nav.settings, icon: Settings },
     ]
 

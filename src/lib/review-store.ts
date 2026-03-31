@@ -69,6 +69,22 @@ function getDb(): Database.Database {
     try { db.exec(`ALTER TABLE reviews ADD COLUMN userName TEXT`); } catch { /* already exists */ }
     try { db.exec(`ALTER TABLE reviews ADD COLUMN tokenUsage INTEGER`); } catch { /* already exists */ }
 
+    // Table for Mobile API impact reports
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mobile_api_reports (
+            id TEXT PRIMARY KEY,
+            versionId TEXT NOT NULL,
+            jiraUrl TEXT,
+            createdAt TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            jiraIssues TEXT,
+            reportMarkdown TEXT,
+            summary TEXT,
+            userId TEXT,
+            userName TEXT
+        )
+    `);
+
     // Table for tracking pushed comments to GitLab/GitHub
     db.exec(`
         CREATE TABLE IF NOT EXISTS pushed_comments (
@@ -362,4 +378,101 @@ export function isCommentPushed(reviewId: string, commentIndex: number, fileName
     const result = db.prepare(query).get(...params) as { count: number };
     db.close();
     return result.count > 0;
+}
+
+// Mobile API Reports
+export interface MobileApiReport {
+    id: string;
+    versionId: string;
+    jiraUrl?: string;
+    createdAt: string;
+    status: "pending" | "completed" | "error";
+    jiraIssues?: { key: string; summary: string; issueType: string }[];
+    reportMarkdown?: string;
+    summary?: { breaking: number; nonBreaking: number; noImpact: number };
+    userId?: string;
+    userName?: string;
+}
+
+export function createMobileApiReport(data: { versionId: string; jiraUrl?: string; userId?: string; userName?: string }): MobileApiReport {
+    const db = getDb();
+    const id = `mar-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const report: MobileApiReport = {
+        id,
+        versionId: data.versionId,
+        jiraUrl: data.jiraUrl,
+        createdAt: new Date().toISOString(),
+        status: "pending",
+        userId: data.userId,
+        userName: data.userName,
+    };
+
+    db.prepare(`
+        INSERT INTO mobile_api_reports (id, versionId, jiraUrl, createdAt, status, userId, userName)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(report.id, report.versionId, report.jiraUrl || null, report.createdAt, report.status, report.userId || null, report.userName || null);
+
+    db.close();
+    return report;
+}
+
+export function updateMobileApiReport(id: string, data: Partial<MobileApiReport>): void {
+    const db = getDb();
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (data.status !== undefined) { updates.push("status = ?"); values.push(data.status); }
+    if (data.jiraIssues !== undefined) { updates.push("jiraIssues = ?"); values.push(JSON.stringify(data.jiraIssues)); }
+    if (data.reportMarkdown !== undefined) { updates.push("reportMarkdown = ?"); values.push(data.reportMarkdown); }
+    if (data.summary !== undefined) { updates.push("summary = ?"); values.push(JSON.stringify(data.summary)); }
+
+    if (updates.length > 0) {
+        values.push(id);
+        db.prepare(`UPDATE mobile_api_reports SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+    }
+    db.close();
+}
+
+export function getMobileApiReport(id: string): MobileApiReport | undefined {
+    const db = getDb();
+    const row = db.prepare("SELECT * FROM mobile_api_reports WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    db.close();
+    if (!row) return undefined;
+    return {
+        id: row.id as string,
+        versionId: row.versionId as string,
+        jiraUrl: row.jiraUrl as string | undefined,
+        createdAt: row.createdAt as string,
+        status: row.status as MobileApiReport["status"],
+        jiraIssues: row.jiraIssues ? JSON.parse(row.jiraIssues as string) : undefined,
+        reportMarkdown: row.reportMarkdown as string | undefined,
+        summary: row.summary ? JSON.parse(row.summary as string) : undefined,
+        userId: row.userId as string | undefined,
+        userName: row.userName as string | undefined,
+    };
+}
+
+export function listMobileApiReports(): MobileApiReport[] {
+    const db = getDb();
+    const rows = db.prepare("SELECT * FROM mobile_api_reports ORDER BY createdAt DESC LIMIT 20").all() as Record<string, unknown>[];
+    db.close();
+    return rows.map((row) => ({
+        id: row.id as string,
+        versionId: row.versionId as string,
+        jiraUrl: row.jiraUrl as string | undefined,
+        createdAt: row.createdAt as string,
+        status: row.status as MobileApiReport["status"],
+        jiraIssues: row.jiraIssues ? JSON.parse(row.jiraIssues as string) : undefined,
+        reportMarkdown: row.reportMarkdown as string | undefined,
+        summary: row.summary ? JSON.parse(row.summary as string) : undefined,
+        userId: row.userId as string | undefined,
+        userName: row.userName as string | undefined,
+    }));
+}
+
+export function deleteMobileApiReport(id: string): boolean {
+    const db = getDb();
+    const result = db.prepare("DELETE FROM mobile_api_reports WHERE id = ?").run(id);
+    db.close();
+    return result.changes > 0;
 }
