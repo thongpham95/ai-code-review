@@ -1,56 +1,54 @@
+/**
+ * Full NextAuth config (Node.js runtime only).
+ * Extends edge-safe authConfig with OTP Credentials provider (requires SQLite/DB).
+ * API routes and server components import from here.
+ * Middleware imports from auth.config.ts instead.
+ */
 import NextAuth from "next-auth"
-import GitHub from "next-auth/providers/github"
-import GitLab from "next-auth/providers/gitlab"
-import Google from "next-auth/providers/google"
+import Credentials from "next-auth/providers/credentials"
+import { authConfig } from "./auth.config"
+import { getLatestOtpForEmail, markOtpUsed, incrementOtpAttempts } from "@/lib/review-store"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-    trustHost: true,
+    ...authConfig,
     providers: [
-        Google({
-            clientId: process.env.AUTH_GOOGLE_ID,
-            clientSecret: process.env.AUTH_GOOGLE_SECRET,
-        }),
-        GitHub({
-            clientId: process.env.AUTH_GITHUB_ID,
-            clientSecret: process.env.AUTH_GITHUB_SECRET,
-        }),
-        GitLab({
-            clientId: process.env.AUTH_GITLAB_ID,
-            clientSecret: process.env.AUTH_GITLAB_SECRET,
-        }),
-        GitLab({
-            id: "gitlab-self-hosted",
-            name: "GitLab Self-Hosted",
-            clientId: process.env.AUTH_GITLAB_SELF_HOSTED_ID,
-            clientSecret: process.env.AUTH_GITLAB_SELF_HOSTED_SECRET,
-            issuer: process.env.AUTH_GITLAB_SELF_HOSTED_ISSUER,
+        ...authConfig.providers,
+        // Email OTP 2FA — requires DB access, Node.js only
+        Credentials({
+            id: "otp",
+            name: "Email OTP",
+            credentials: {
+                email: { label: "Email", type: "email" },
+                code: { label: "OTP Code", type: "text" },
+            },
+            async authorize(credentials) {
+                const email = (credentials?.email as string | undefined)?.trim().toLowerCase()
+                const code = (credentials?.code as string | undefined)?.trim()
+
+                if (!email || !code) return null
+
+                // Enforce domain restriction
+                if (!email.endsWith("@tvtgroup.io")) return null
+
+                const otp = getLatestOtpForEmail(email)
+                if (!otp) return null
+                if (otp.used) return null
+                if (otp.attempts >= 3) return null
+                if (Date.now() > otp.expiresAt) return null
+
+                if (otp.code !== code) {
+                    incrementOtpAttempts(otp.id)
+                    return null
+                }
+
+                markOtpUsed(otp.id)
+
+                return {
+                    id: email,
+                    email,
+                    name: email.split("@")[0],
+                }
+            },
         }),
     ],
-    pages: {
-        signIn: "/login",
-    },
-    callbacks: {
-        async signIn({ account, profile }) {
-            // Restrict Google login to @tvtgroup.io domain
-            if (account?.provider === "google") {
-                return profile?.email?.endsWith("@tvtgroup.io") ?? false
-            }
-            return true
-        },
-        async jwt({ token, user }) {
-            if (user) {
-                token.id = user.id
-            }
-            return token
-        },
-        async session({ session, token }) {
-            if (session.user && token.id) {
-                session.user.id = token.id as string
-            }
-            return session
-        },
-        authorized() {
-            return true
-        },
-    },
 })

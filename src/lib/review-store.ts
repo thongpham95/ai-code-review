@@ -99,6 +99,19 @@ function getDb(): Database.Database {
         )
     `);
 
+    // Table for email OTP verification codes (2FA)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS otp_verifications (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL,
+            code TEXT NOT NULL,
+            expiresAt INTEGER NOT NULL,
+            used INTEGER NOT NULL DEFAULT 0,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            createdAt TEXT NOT NULL
+        )
+    `);
+
     return db;
 }
 
@@ -475,4 +488,57 @@ export function deleteMobileApiReport(id: string): boolean {
     const result = db.prepare("DELETE FROM mobile_api_reports WHERE id = ?").run(id);
     db.close();
     return result.changes > 0;
+}
+
+// OTP Verifications (2FA)
+export interface OtpVerification {
+    id: string;
+    email: string;
+    code: string;
+    expiresAt: number;  // Unix timestamp ms
+    used: boolean;
+    attempts: number;
+    createdAt: string;
+}
+
+export function createOtpVerification(email: string, code: string, expiresAt: number): OtpVerification {
+    const db = getDb();
+    const id = `otp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const createdAt = new Date().toISOString();
+    db.prepare(`
+        INSERT INTO otp_verifications (id, email, code, expiresAt, used, attempts, createdAt)
+        VALUES (?, ?, ?, ?, 0, 0, ?)
+    `).run(id, email.toLowerCase(), code, expiresAt, createdAt);
+    db.close();
+    return { id, email: email.toLowerCase(), code, expiresAt, used: false, attempts: 0, createdAt };
+}
+
+export function getLatestOtpForEmail(email: string): OtpVerification | undefined {
+    const db = getDb();
+    const row = db.prepare(
+        "SELECT * FROM otp_verifications WHERE email = ? ORDER BY createdAt DESC LIMIT 1"
+    ).get(email.toLowerCase()) as Record<string, unknown> | undefined;
+    db.close();
+    if (!row) return undefined;
+    return {
+        id: row.id as string,
+        email: row.email as string,
+        code: row.code as string,
+        expiresAt: row.expiresAt as number,
+        used: (row.used as number) === 1,
+        attempts: row.attempts as number,
+        createdAt: row.createdAt as string,
+    };
+}
+
+export function markOtpUsed(id: string): void {
+    const db = getDb();
+    db.prepare("UPDATE otp_verifications SET used = 1 WHERE id = ?").run(id);
+    db.close();
+}
+
+export function incrementOtpAttempts(id: string): void {
+    const db = getDb();
+    db.prepare("UPDATE otp_verifications SET attempts = attempts + 1 WHERE id = ?").run(id);
+    db.close();
 }
